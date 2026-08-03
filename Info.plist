@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Assistant</string>
+	<key>CFBundleDisplayName</key>
+	<string>Assistant</string>
+	<key>CFBundleExecutable</key>
+	<string>Assistant</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.assistant.overlay</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Assistant needs microphone access to transcribe your voice prompts for AI agents.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Assistant uses speech recognition to turn your voice into agent prompts.</string>
+</dict>
+</plist>

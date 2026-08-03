@@ -1,0 +1,318 @@
+import Foundation
+
+// Minimal hand-rolled test harness (no XCTest in a plain swiftc build).
+var failureCount = 0
+var testCount = 0
+
+func expect(_ condition: Bool, _ message: String, file: String = #file, line: Int = #line) {
+    testCount += 1
+    if !condition {
+        failureCount += 1
+        print("FAIL [\((file as NSString).lastPathComponent):\(line)] \(message)")
+    }
+}
+
+func expectEqual<T: Equatable>(_ a: T, _ b: T, _ message: String = "", file: String = #file, line: Int = #line) {
+    expect(a == b, "\(message) — expected \(b), got \(a)", file: file, line: line)
+}
+
+// MARK: - StreamJSON tests
+
+func testStreamJSONParsing() {
+    let initLine = #"{"type":"system","subtype":"init","cwd":"/tmp","session_id":"ebbd08b6-45d6-4c69-95b6-73d2e79a63de","tools":[]}"#
+    expectEqual(StreamJSON.parseLine(initLine), .sessionStarted(sessionID: "ebbd08b6-45d6-4c69-95b6-73d2e79a63de"), "init line")
+
+    let textLine = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hello"}]}}"#
+    expectEqual(StreamJSON.parseLine(textLine), .assistantText("hello"), "assistant text")
+
+    let thinkingLine = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"hmm"}]}}"#
+    expectEqual(StreamJSON.parseLine(thinkingLine), .ignored, "thinking ignored")
+
+    let toolLine = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls -la"}}]}}"#
+    expectEqual(StreamJSON.parseLine(toolLine), .toolUse(name: "Bash", summary: "ls -la"), "tool use")
+
+    let resultLine = #"{"type":"result","subtype":"success","is_error":false,"result":"done","session_id":"x"}"#
+    expectEqual(StreamJSON.parseLine(resultLine), .turnEnded(isError: false, resultText: "done"), "result success")
+
+    let errorResult = #"{"type":"result","subtype":"error_during_execution","is_error":true,"result":"boom"}"#
+    expectEqual(StreamJSON.parseLine(errorResult), .turnEnded(isError: true, resultText: "boom"), "result error")
+
+    let statusLine = #"{"type":"system","subtype":"status","status":null}"#
+    expectEqual(StreamJSON.parseLine(statusLine), .ignored, "status ignored")
+
+    expectEqual(StreamJSON.parseLine("not json"), nil, "garbage line")
+    expectEqual(StreamJSON.parseLine(""), nil, "empty line")
+
+    // Encoding round-trip
+    let encoded = StreamJSON.encodeUserMessage(text: "fix the bug\nplease")!
+    let decoded = try! JSONSerialization.jsonObject(with: encoded.data(using: .utf8)!) as! [String: Any]
+    expectEqual(decoded["type"] as! String, "user", "encoded type")
+    let msg = decoded["message"] as! [String: Any]
+    let content = msg["content"] as! [[String: Any]]
+    expectEqual(content[0]["text"] as! String, "fix the bug\nplease", "encoded text")
+    expect(!encoded.contains("\n"), "encoded line must not contain raw newlines")
+}
+
+func testPermissionProtocol() {
+    let controlLine = #"{"type":"control_request","request_id":"req-1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"touch /tmp/x","description":"Create file"}}}"#
+    guard case .permissionRequested(let id, let tool, let summary, let inputJSON)? = StreamJSON.parseLine(controlLine) else {
+        expect(false, "control_request should parse as permissionRequested")
+        return
+    }
+    expectEqual(id, "req-1", "request id")
+    expectEqual(tool, "Bash", "tool name")
+    expectEqual(summary, "touch /tmp/x", "summary uses command")
+    expect(inputJSON.contains("touch /tmp/x"), "input preserved")
+
+    // Allow response echoes the original input.
+    let allow = StreamJSON.encodePermissionResponse(requestID: "req-1", allow: true, inputJSON: inputJSON)!
+    let decoded = try! JSONSerialization.jsonObject(with: allow.data(using: .utf8)!) as! [String: Any]
+    expectEqual(decoded["type"] as! String, "control_response", "response type")
+    let response = decoded["response"] as! [String: Any]
+    expectEqual(response["request_id"] as! String, "req-1", "response request id")
+    let inner = response["response"] as! [String: Any]
+    expectEqual(inner["behavior"] as! String, "allow", "allow behavior")
+    let updated = inner["updatedInput"] as! [String: Any]
+    expectEqual(updated["command"] as! String, "touch /tmp/x", "updatedInput echoed")
+
+    // Deny carries a message and no updatedInput requirement.
+    let deny = StreamJSON.encodePermissionResponse(requestID: "req-1", allow: false, inputJSON: inputJSON)!
+    let denyDecoded = try! JSONSerialization.jsonObject(with: deny.data(using: .utf8)!) as! [String: Any]
+    let denyInner = (denyDecoded["response"] as! [String: Any])["response"] as! [String: Any]
+    expectEqual(denyInner["behavior"] as! String, "deny", "deny behavior")
+    expect((denyInner["message"] as? String)?.isEmpty == false, "deny message present")
+
+    // Other control requests are ignored, not surfaced.
+    let other = #"{"type":"control_request","request_id":"r2","request":{"subtype":"hook_callback"}}"#
+    expectEqual(StreamJSON.parseLine(other), .ignored, "non-permission control requests ignored")
+}
+
+func testImageMessageEncoding() {
+    let line = StreamJSON.encodeUserMessage(text: "look", imageBase64: "QUJD", imageMediaType: "image/jpeg")!
+    let decoded = try! JSONSerialization.jsonObject(with: line.data(using: .utf8)!) as! [String: Any]
+    let content = ((decoded["message"] as! [String: Any])["content"] as! [[String: Any]])
+    expectEqual(content.count, 2, "text + image blocks")
+    expectEqual(content[0]["type"] as! String, "text", "text first")
+    let source = (content[1]["source"] as! [String: Any])
+    expectEqual(source["data"] as! String, "QUJD", "base64 payload")
+    expectEqual(source["media_type"] as! String, "image/jpeg", "media type")
+}
+
+func testToolSummaries() {
+    expectEqual(StreamJSON.toolSummary(name: "Edit", input: ["file_path": "/Users/x/proj/main.swift"]), "/Users/x/proj/main.swift", "edit summary")
+    let long = String(repeating: "x", count: 200)
+    expect(StreamJSON.toolSummary(name: "Bash", input: ["command": long]).count <= 121, "long command truncated")
+    expectEqual(StreamJSON.toolSummary(name: "Grep", input: ["pattern": "TODO"]), "TODO", "grep summary")
+}
+
+// MARK: - Interaction model tests
+
+func testPromptEntryFlow() {
+    var m = OverlayInteractionModel()
+    expectEqual(m.handle(.promptHotkey), [.showPromptPill, .startTranscription], "opt+space opens pill")
+    expectEqual(m.mode, .promptEntry(transcribing: true), "transcribing state")
+
+    // Opt+Space again stops transcription -> editing
+    expectEqual(m.handle(.promptHotkey), [.stopTranscription, .beginEditing(seed: nil)], "opt+space stops")
+    expectEqual(m.mode, .promptEntry(transcribing: false), "editing state")
+
+    // Opt+Space restarts transcription
+    expectEqual(m.handle(.promptHotkey), [.startTranscription], "opt+space restarts")
+
+    // Typing a key while transcribing stops and seeds the field
+    expectEqual(m.handle(.character("f")), [.stopTranscription, .beginEditing(seed: "f")], "typing stops transcription")
+
+    // Return submits
+    expectEqual(m.handle(.returnKey), [.submitPrompt, .hideOverlay], "return submits")
+    expectEqual(m.mode, .hidden, "hidden after submit")
+}
+
+func testPromptEscapeAndTab() {
+    var m = OverlayInteractionModel()
+    _ = m.handle(.promptHotkey)
+    expectEqual(m.handle(.escape), [.stopTranscription, .hideOverlay], "escape closes while transcribing")
+    expectEqual(m.mode, .hidden, "hidden after escape")
+
+    _ = m.handle(.promptHotkey)
+    expectEqual(m.handle(.tab), [.stopTranscription, .showManagement], "tab moves to management")
+    expectEqual(m.mode, .management(confirmingArchive: false), "management mode after tab")
+}
+
+func testManagementNavigation() {
+    var m = OverlayInteractionModel()
+    _ = m.handle(.managementHotkey)
+    expectEqual(m.mode, .management(confirmingArchive: false), "opt+tab opens management")
+
+    expectEqual(m.handle(.character("w")), [.selectPrevious], "w selects previous")
+    expectEqual(m.handle(.character("s")), [.selectNext], "s selects next")
+    expectEqual(m.handle(.navUp), [.selectPrevious], "up arrow")
+    expectEqual(m.handle(.navDown), [.selectNext], "down arrow")
+
+    expectEqual(m.handle(.character("d")), [.openSelected], "d opens agent")
+    expectEqual(m.mode, .conversation, "conversation mode")
+
+    expectEqual(m.handle(.escape), [.closeConversation, .showManagement], "escape closes conversation")
+    expectEqual(m.mode, .management(confirmingArchive: false), "back to management")
+}
+
+func testArchiveConfirmation() {
+    var m = OverlayInteractionModel()
+    _ = m.handle(.managementHotkey)
+
+    expectEqual(m.handle(.character("a")), [.beginArchiveConfirmation], "a begins archive confirm")
+    expectEqual(m.mode, .management(confirmingArchive: true), "confirming state")
+
+    // Escape cancels
+    expectEqual(m.handle(.escape), [.cancelArchiveConfirmation], "escape cancels archive")
+    expectEqual(m.mode, .management(confirmingArchive: false), "back to browsing")
+
+    // D cancels too
+    _ = m.handle(.navArchive)
+    expectEqual(m.handle(.character("d")), [.cancelArchiveConfirmation], "d cancels archive")
+
+    // A confirms
+    _ = m.handle(.character("a"))
+    expectEqual(m.handle(.character("a")), [.confirmArchive], "a confirms archive")
+    expectEqual(m.mode, .management(confirmingArchive: false), "browsing after archive")
+
+    // W/S ignored while confirming
+    _ = m.handle(.character("a"))
+    expectEqual(m.handle(.character("w")), [], "nav ignored while confirming")
+}
+
+func testConversationMode() {
+    var m = OverlayInteractionModel()
+    _ = m.handle(.managementHotkey)
+    _ = m.handle(.character("d"))
+    expectEqual(m.mode, .conversation, "in conversation")
+
+    expectEqual(m.handle(.promptHotkey), [.toggleComposerTranscription], "opt+space toggles composer voice")
+    expectEqual(m.mode, .conversation, "still in conversation")
+
+    // Typing keys are not interpreted as commands in conversation mode
+    expectEqual(m.handle(.character("a")), [], "letters not interpreted in conversation")
+}
+
+// MARK: - Launcher tests
+
+func testExecutableResolution() {
+    let resolved = ClaudeCodeLauncher.resolveExecutable(
+        configuredPath: nil, home: "/Users/t", pathEnvironment: "/bin:/custom",
+        isExecutable: { $0 == "/custom/claude" }
+    )
+    expectEqual(resolved, "/custom/claude", "PATH fallback")
+
+    let known = ClaudeCodeLauncher.resolveExecutable(
+        configuredPath: nil, home: "/Users/t", pathEnvironment: nil,
+        isExecutable: { $0 == "/Users/t/.local/bin/claude" }
+    )
+    expectEqual(known, "/Users/t/.local/bin/claude", "well-known path")
+
+    let configured = ClaudeCodeLauncher.resolveExecutable(
+        configuredPath: "/x/claude", home: "/Users/t", pathEnvironment: nil,
+        isExecutable: { _ in false }
+    )
+    expectEqual(configured, nil, "bad configured path is an error, not a fallback")
+}
+
+func testArguments() {
+    let id = UUID()
+    let newArgs = ClaudeCodeLauncher.arguments(sessionID: id, resumeSessionID: nil)
+    expect(newArgs.contains("--session-id"), "new session pins session id")
+    expect(newArgs.contains(id.uuidString.lowercased()), "session id value present")
+    expect(!newArgs.contains("--resume"), "no resume for new session")
+
+    let resumeArgs = ClaudeCodeLauncher.arguments(sessionID: id, resumeSessionID: "abc-123")
+    expect(resumeArgs.contains("--resume"), "resume flag present")
+    expect(resumeArgs.contains("abc-123"), "resume id present")
+    expect(!resumeArgs.contains("--session-id"), "no session-id when resuming")
+}
+
+func testInitialPromptAndTitle() {
+    expectEqual(ClaudeCodeLauncher.initialPrompt(userPrompt: "hi", screenshotPath: nil), "hi", "no screenshot")
+    let withShot = ClaudeCodeLauncher.initialPrompt(userPrompt: "hi", screenshotPath: "/tmp/s.png")
+    expect(withShot.contains("/tmp/s.png"), "screenshot path referenced")
+    expect(withShot.hasPrefix("hi"), "prompt comes first")
+
+    expectEqual(ClaudeCodeLauncher.title(fromPrompt: "  fix   the\nlogin bug  "), "fix the login bug", "title collapses whitespace")
+    expect(ClaudeCodeLauncher.title(fromPrompt: String(repeating: "word ", count: 40)).count <= 49, "title truncated")
+    expectEqual(ClaudeCodeLauncher.title(fromPrompt: "   "), "New agent", "empty prompt fallback")
+}
+
+// MARK: - SessionStore tests
+
+func testSessionStorePersistence() {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("assistant-tests-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    let store = SessionStore(directory: dir)
+    var meta = AgentSessionMeta(
+        providerID: "claude-code", providerSessionID: "prov-1",
+        title: "Test agent", workingDirectory: "/tmp", state: .running
+    )
+    store.add(meta)
+    store.append(message: ChatMessage(role: .user, text: "hello"), to: meta.id)
+    store.append(message: ChatMessage(role: .assistant, text: "hi"), to: meta.id)
+
+    // Reload from disk: running becomes needsInput, transcript intact.
+    let reloaded = SessionStore(directory: dir)
+    expectEqual(reloaded.sessions.count, 1, "one session restored")
+    expectEqual(reloaded.sessions[0].state, .needsInput, "running demoted to needsInput on restore")
+    expectEqual(reloaded.sessions[0].providerSessionID, "prov-1", "provider session id restored")
+    expectEqual(reloaded.transcript(for: meta.id).count, 2, "transcript restored")
+    expectEqual(reloaded.transcript(for: meta.id)[1].text, "hi", "transcript content")
+
+    // Archived sessions leave the panel.
+    meta.id = reloaded.sessions[0].id
+    reloaded.archive(id: meta.id)
+    expectEqual(reloaded.panelSessions.count, 0, "archived leaves panel")
+    let again = SessionStore(directory: dir)
+    expectEqual(again.sessions[0].state, .archived, "archive persisted")
+}
+
+func testPanelOrdering() {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("assistant-tests-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let store = SessionStore(directory: dir)
+
+    store.add(AgentSessionMeta(providerID: "claude-code", title: "runner", workingDirectory: "/", state: .running))
+    store.add(AgentSessionMeta(providerID: "claude-code", title: "waiter", workingDirectory: "/", state: .needsInput))
+    store.add(AgentSessionMeta(providerID: "claude-code", title: "gone", workingDirectory: "/", state: .archived))
+    store.add(AgentSessionMeta(providerID: "claude-code", title: "broken", workingDirectory: "/", state: .failed))
+
+    let panel = store.panelSessions
+    expectEqual(panel.count, 3, "archived excluded")
+    expectEqual(panel[0].title, "waiter", "needsInput first")
+    expectEqual(panel[1].title, "runner", "running second")
+    expectEqual(panel[2].title, "broken", "failed last")
+}
+
+// MARK: - Runner
+
+@main
+struct TestRunner {
+    static func main() {
+        testStreamJSONParsing()
+        testPermissionProtocol()
+        testImageMessageEncoding()
+        testToolSummaries()
+        testPromptEntryFlow()
+        testPromptEscapeAndTab()
+        testManagementNavigation()
+        testArchiveConfirmation()
+        testConversationMode()
+        testExecutableResolution()
+        testArguments()
+        testInitialPromptAndTitle()
+        testSessionStorePersistence()
+        testPanelOrdering()
+
+        if failureCount > 0 {
+            print("\(failureCount)/\(testCount) checks FAILED")
+            exit(1)
+        }
+        print("All \(testCount) checks passed")
+    }
+}

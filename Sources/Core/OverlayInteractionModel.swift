@@ -1,0 +1,181 @@
+import Foundation
+
+/// The overlay's explicit interaction states. Keyboard input is interpreted
+/// against the current mode — never as globally-sniffed single-letter
+/// commands — so the same key can safely mean different things in different
+/// modes (e.g. "a" archives in the panel but types into the composer).
+enum OverlayMode: Equatable {
+    case hidden
+    /// Bottom-center prompt pill. `transcribing` == listening to speech;
+    /// otherwise the pill is an editable text field.
+    case promptEntry(transcribing: Bool)
+    /// Top-left agent panel. `confirmingArchive` == awaiting A / Escape.
+    case management(confirmingArchive: Bool)
+    /// Full conversation overlay for one agent.
+    case conversation
+}
+
+/// Normalized input events fed to the interaction model by the UI layer.
+enum OverlayInput: Equatable {
+    case promptHotkey       // Option+Space (global)
+    case managementHotkey   // Option+Tab (global)
+    case escape
+    case returnKey
+    case tab
+    /// A normal typing key pressed while the prompt pill is transcribing.
+    case character(Character)
+    // Management-panel navigation (arrows; letters arrive as .character and
+    // are normalized here).
+    case navUp
+    case navDown
+    case navOpen
+    case navArchive
+}
+
+/// Side effects the controller must perform after a transition.
+enum OverlayCommand: Equatable {
+    case showPromptPill
+    case startTranscription
+    case stopTranscription
+    /// Convert the pill into an editable field; `seed` is the character that
+    /// interrupted transcription and becomes the first typed character.
+    case beginEditing(seed: Character?)
+    case submitPrompt
+    case hideOverlay
+    case showManagement
+    case selectPrevious
+    case selectNext
+    case openSelected
+    case beginArchiveConfirmation
+    case confirmArchive
+    case cancelArchiveConfirmation
+    case closeConversation
+    /// Toggle voice input inside the conversation composer.
+    case toggleComposerTranscription
+}
+
+struct OverlayInteractionModel {
+    private(set) var mode: OverlayMode = .hidden
+
+    mutating func handle(_ input: OverlayInput) -> [OverlayCommand] {
+        switch mode {
+        case .hidden:
+            switch input {
+            case .promptHotkey:
+                mode = .promptEntry(transcribing: true)
+                return [.showPromptPill, .startTranscription]
+            case .managementHotkey:
+                mode = .management(confirmingArchive: false)
+                return [.showManagement]
+            default:
+                return []
+            }
+
+        case .promptEntry(let transcribing):
+            switch input {
+            case .promptHotkey:
+                if transcribing {
+                    mode = .promptEntry(transcribing: false)
+                    return [.stopTranscription, .beginEditing(seed: nil)]
+                } else {
+                    mode = .promptEntry(transcribing: true)
+                    return [.startTranscription]
+                }
+            case .character(let c) where transcribing:
+                mode = .promptEntry(transcribing: false)
+                return [.stopTranscription, .beginEditing(seed: c)]
+            case .returnKey:
+                mode = .hidden
+                return transcribing
+                    ? [.stopTranscription, .submitPrompt, .hideOverlay]
+                    : [.submitPrompt, .hideOverlay]
+            case .escape:
+                mode = .hidden
+                return transcribing
+                    ? [.stopTranscription, .hideOverlay]
+                    : [.hideOverlay]
+            case .tab:
+                mode = .management(confirmingArchive: false)
+                return transcribing
+                    ? [.stopTranscription, .showManagement]
+                    : [.showManagement]
+            case .managementHotkey:
+                mode = .management(confirmingArchive: false)
+                return transcribing
+                    ? [.stopTranscription, .showManagement]
+                    : [.showManagement]
+            default:
+                return []
+            }
+
+        case .management(let confirming):
+            if confirming {
+                switch input {
+                case .character(let c) where c.lowercased() == "a":
+                    mode = .management(confirmingArchive: false)
+                    return [.confirmArchive]
+                case .character(let c) where c.lowercased() == "d":
+                    mode = .management(confirmingArchive: false)
+                    return [.cancelArchiveConfirmation]
+                case .escape, .navOpen:
+                    mode = .management(confirmingArchive: false)
+                    return [.cancelArchiveConfirmation]
+                default:
+                    return []
+                }
+            }
+            switch input {
+            case .navUp:
+                return [.selectPrevious]
+            case .navDown:
+                return [.selectNext]
+            case .navOpen:
+                mode = .conversation
+                return [.openSelected]
+            case .navArchive:
+                mode = .management(confirmingArchive: true)
+                return [.beginArchiveConfirmation]
+            case .character(let c):
+                switch c.lowercased() {
+                case "w": return [.selectPrevious]
+                case "s": return [.selectNext]
+                case "d":
+                    mode = .conversation
+                    return [.openSelected]
+                case "a":
+                    mode = .management(confirmingArchive: true)
+                    return [.beginArchiveConfirmation]
+                default: return []
+                }
+            case .escape, .managementHotkey:
+                mode = .hidden
+                return [.hideOverlay]
+            case .promptHotkey:
+                mode = .promptEntry(transcribing: true)
+                return [.showPromptPill, .startTranscription]
+            default:
+                return []
+            }
+
+        case .conversation:
+            switch input {
+            case .escape:
+                mode = .management(confirmingArchive: false)
+                return [.closeConversation, .showManagement]
+            case .promptHotkey:
+                return [.toggleComposerTranscription]
+            case .managementHotkey:
+                mode = .management(confirmingArchive: false)
+                return [.closeConversation, .showManagement]
+            default:
+                return []
+            }
+        }
+    }
+
+    /// Used when the conversation UI itself changes mode (e.g. opening an
+    /// agent from a click) or when the controller must force a state.
+    mutating func forceMode(_ newMode: OverlayMode) {
+        mode = newMode
+    }
+}

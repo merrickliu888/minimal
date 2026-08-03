@@ -1,0 +1,123 @@
+import SwiftUI
+
+/// Bottom-center prompt pill: waveform while listening, editable text field
+/// once the user types.
+struct PromptPillView: View {
+    @EnvironmentObject var controller: OverlayController
+    @EnvironmentObject var transcriber: Transcriber
+    @FocusState private var fieldFocused: Bool
+
+    private var isTranscribing: Bool {
+        if case .promptEntry(transcribing: true) = controller.mode { return true }
+        return false
+    }
+
+    var body: some View {
+        VStack {
+            Spacer()
+            Group {
+                if isTranscribing {
+                    listeningPill
+                } else {
+                    editingField
+                }
+            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isTranscribing)
+            .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: Listening state
+
+    private var listeningPill: some View {
+        HStack(spacing: 12) {
+            // Unmistakable recording indicator.
+            Circle()
+                .fill(Color.red)
+                .frame(width: 8, height: 8)
+                .opacity(0.9)
+                .modifier(PulseEffect())
+
+            WaveformView(level: transcriber.audioLevel)
+                .frame(width: 88, height: 24)
+
+            Group {
+                if transcriber.partialText.isEmpty {
+                    Text("Listening… speak, or start typing")
+                        .foregroundStyle(Theme.textSecondary)
+                } else {
+                    Text(transcriber.partialText)
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(2)
+                }
+            }
+            .font(.system(size: 14))
+            .frame(maxWidth: 320, alignment: .leading)
+
+            KeyHint(symbol: "⏎", label: "start agent")
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .overlayCard(cornerRadius: Theme.pillRadius)
+        .fixedSize(horizontal: true, vertical: true)
+    }
+
+    // MARK: Editing state
+
+    private var editingField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Describe what the agent should do…", text: $controller.draftText, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14))
+                .lineLimit(1...5)
+                .focused($fieldFocused)
+                .onAppear { fieldFocused = true }
+
+            HStack(spacing: 14) {
+                KeyHint(symbol: "⏎", label: "start agent")
+                KeyHint(symbol: "⌥␣", label: "voice")
+                KeyHint(symbol: "esc", label: "dismiss")
+                Spacer()
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .frame(width: 560)
+        .overlayCard(cornerRadius: 18)
+    }
+}
+
+/// Symmetric center-weighted level bars.
+struct WaveformView: View {
+    var level: Float
+    private let weights: [CGFloat] = [0.35, 0.55, 0.78, 0.95, 1.0, 0.95, 0.78, 0.55, 0.35]
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 3) {
+                ForEach(weights.indices, id: \.self) { i in
+                    let travel = 0.5 + 0.5 * sin(time * 6.2 - Double(i) * 0.78)
+                    let base = CGFloat(level) * weights[i]
+                    let liveliness = (1 - base) * CGFloat(0.06 + travel * 0.16)
+                    let height = max(3, (base + liveliness) * 24)
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(Theme.accent)
+                        .frame(width: 3, height: height)
+                }
+            }
+            .frame(height: 24)
+        }
+    }
+}
+
+struct PulseEffect: ViewModifier {
+    @State private var pulsing = false
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(pulsing ? 1.25 : 0.9)
+            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulsing)
+            .onAppear { pulsing = true }
+    }
+}

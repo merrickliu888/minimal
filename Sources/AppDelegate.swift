@@ -1,0 +1,89 @@
+import AppKit
+import SwiftUI
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+
+    let store = SessionStore()
+    let permissions = PermissionsManager()
+    let provider = ClaudeCodeProvider()
+    let transcriber = Transcriber()
+    lazy var coordinator = AgentCoordinator(store: store, provider: provider)
+    lazy var settingsModel = SettingsModel(provider: provider)
+    lazy var overlayController = OverlayController(
+        store: store, coordinator: coordinator, transcriber: transcriber
+    )
+
+    private let hotkeys = HotkeyManager()
+    private var settingsWindow: NSWindow?
+    private var providerConnected = false
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        permissions.refresh()
+
+        overlayController.canUseOverlay = { [weak self] in
+            guard let self else { return false }
+            return self.permissions.allGranted && self.providerConnected
+        }
+        overlayController.onRequestSettings = { [weak self] in
+            self?.showSettingsWindow()
+        }
+
+        hotkeys.onHotkey = { [weak self] hotkey in
+            self?.overlayController.handleHotkey(hotkey)
+        }
+        hotkeys.start()
+
+        Task { @MainActor in
+            let health = await provider.checkHealth()
+            providerConnected = health.isConnected
+            settingsModel.health = health
+            if !permissions.allGranted || !health.isConnected {
+                showSettingsWindow()
+            }
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        coordinator.terminateAll()
+        hotkeys.stop()
+    }
+
+    // MARK: - Settings window
+
+    func showSettingsWindow() {
+        if settingsWindow == nil {
+            let view = SettingsView(settingsModel: settingsModel)
+                .environmentObject(permissions)
+            let hosting = NSHostingController(rootView: view)
+            let window = NSWindow(contentViewController: hosting)
+            window.title = "Assistant"
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            settingsWindow = window
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification, object: window, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    NSApp.setActivationPolicy(.accessory)
+                    // Re-evaluate the gate as the user leaves setup.
+                    if let self {
+                        let health = await self.provider.checkHealth()
+                        self.providerConnected = health.isConnected
+                    }
+                }
+            }
+        }
+        // LSUIElement app: give the settings window a real presence.
+        NSApp.setActivationPolicy(.regular)
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        // Track connection state as checks complete while the window is open.
+        Task { @MainActor in
+            let health = await provider.checkHealth()
+            providerConnected = health.isConnected
+            settingsModel.health = health
+        }
+    }
+}

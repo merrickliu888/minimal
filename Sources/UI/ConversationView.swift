@@ -1,0 +1,223 @@
+import SwiftUI
+
+/// Large conversation overlay: the agent's transcript (messages and tool
+/// actions, Claude Code style) plus a composer with voice input.
+struct ConversationView: View {
+    @EnvironmentObject var controller: OverlayController
+    @EnvironmentObject var store: SessionStore
+    @EnvironmentObject var transcriber: Transcriber
+    @FocusState private var composerFocused: Bool
+
+    private var sessionID: UUID? { controller.openSessionID }
+    private var meta: AgentSessionMeta? { sessionID.flatMap { store.session(id: $0) } }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider().opacity(0.4)
+            transcript
+            pendingPermissionBar
+            Divider().opacity(0.4)
+            composer
+        }
+        .frame(width: 760, height: 620)
+        .overlayCard(cornerRadius: 14)
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            if let meta {
+                statusDot(for: meta.state)
+                Text(meta.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                Text((meta.workingDirectory as NSString).abbreviatingWithTildeInPath)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            KeyHint(symbol: "esc", label: "back")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    @ViewBuilder
+    private func statusDot(for state: AgentState) -> some View {
+        switch state {
+        case .running: SpinnerView().frame(width: 12, height: 12)
+        case .needsInput: Circle().fill(Theme.accent).frame(width: 8, height: 8)
+        case .failed: Circle().fill(Theme.failure).frame(width: 8, height: 8)
+        case .archived: Circle().fill(Color.gray).frame(width: 8, height: 8)
+        }
+    }
+
+    // MARK: Transcript
+
+    private var transcript: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    if let sessionID {
+                        ForEach(store.transcript(for: sessionID)) { message in
+                            MessageRow(message: message)
+                                .id(message.id)
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .onChange(of: sessionID.map { store.transcript(for: $0).count } ?? 0) {
+                if let last = sessionID.flatMap({ store.transcript(for: $0).last }) {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
+            }
+            .onAppear {
+                if let last = sessionID.flatMap({ store.transcript(for: $0).last }) {
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
+            }
+        }
+    }
+
+    // MARK: Permissions
+
+    @ViewBuilder
+    private var pendingPermissionBar: some View {
+        if let sessionID,
+           let request = controller.coordinator.pendingPermissions(for: sessionID).first {
+            HStack(spacing: 10) {
+                Image(systemName: "hand.raised.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Allow \(request.toolName)?")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(request.summary)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(2)
+                }
+                Spacer()
+                KeyHint(symbol: "⌘Y", label: "allow")
+                KeyHint(symbol: "⌘N", label: "deny")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Theme.accent.opacity(0.10))
+        }
+    }
+
+    // MARK: Composer
+
+    private var composer: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField(
+                    controller.composerTranscribing ? "Listening…" : "Reply to the agent…",
+                    text: $controller.composerText,
+                    axis: .vertical
+                )
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .lineLimit(1...6)
+                .focused($composerFocused)
+                .onAppear { composerFocused = true }
+
+                if controller.composerTranscribing {
+                    WaveformView(level: transcriber.audioLevel)
+                        .frame(width: 60, height: 18)
+                }
+            }
+            HStack(spacing: 12) {
+                KeyHint(symbol: "⏎", label: "send")
+                KeyHint(symbol: "⇧⏎", label: "newline")
+                KeyHint(symbol: "⌥␣", label: controller.composerTranscribing ? "stop voice" : "voice")
+                Spacer()
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - Message rendering
+
+struct MessageRow: View {
+    let message: ChatMessage
+
+    var body: some View {
+        switch message.role {
+        case .user:
+            HStack(alignment: .top, spacing: 8) {
+                Text(">")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Theme.accent)
+                Text(message.text)
+                    .font(.system(size: 12.5))
+                    .textSelection(.enabled)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.accent.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+        case .assistant:
+            Text(message.text)
+                .font(.system(size: 12.5))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .tool:
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: toolIcon)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: 14)
+                Text(message.toolName ?? "Tool")
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text(message.text)
+                    .font(.system(size: 11.5, design: .monospaced))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(3)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .system:
+            Text(message.text)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .error:
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.failure)
+                Text(message.text)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.failure)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var toolIcon: String {
+        switch message.toolName {
+        case "Bash": return "terminal"
+        case "Read": return "eye"
+        case "Edit", "Write", "MultiEdit": return "pencil"
+        case "Grep", "Glob", "WebSearch": return "magnifyingglass"
+        case "WebFetch": return "globe"
+        case "Task": return "person.2"
+        default: return "wrench"
+        }
+    }
+}
