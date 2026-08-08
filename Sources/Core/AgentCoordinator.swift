@@ -43,6 +43,13 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
         )
         store.add(meta)
         store.append(message: ChatMessage(role: .user, text: prompt), to: meta.id)
+        // Upgrade the truncated-prompt title to a generated one in the
+        // background; keep the fallback if generation fails.
+        Task { [weak self] in
+            guard let self, let title = await self.provider.generateTitle(forPrompt: prompt) else { return }
+            guard self.store.session(id: meta.id)?.state != .archived else { return }
+            self.store.update(id: meta.id) { $0.title = title }
+        }
         do {
             let run = try provider.startRun(
                 sessionID: meta.id,

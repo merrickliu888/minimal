@@ -120,4 +120,12 @@ protocol AgentProvider: AnyObject {
         model: String?,
         resumeProviderSessionID: String?
     ) throws -> AgentRun
+
+    /// Generate a short display title for a session that started with
+    /// `prompt`. Optional; nil keeps the fallback (truncated prompt).
+    func generateTitle(forPrompt prompt: String) async -> String?
+}
+
+extension AgentProvider {
+    func generateTitle(forPrompt prompt: String) async -> String? { nil }
 }
