@@ -280,6 +280,35 @@ func testTitleDerivation() {
     expectEqual(ClaudeCodeLauncher.title(fromPrompt: "   "), "New agent", "empty prompt fallback")
 }
 
+// MARK: - Diff parsing tests
+
+func testDiffParsing() {
+    let diff = """
+    diff --git a/Sources/main.swift b/Sources/main.swift
+    index 1234567..89abcde 100644
+    --- a/Sources/main.swift
+    +++ b/Sources/main.swift
+    @@ -1,3 +1,4 @@
+     import Foundation
+    -print("old")
+    +print("new")
+    +print("extra")
+    """
+    let lines = GitInfo.parseDiff(diff)
+    expectEqual(lines[0].kind, .fileHeader, "file header first")
+    expectEqual(lines[0].text, "Sources/main.swift", "header shows new path")
+    expectEqual(lines[1].kind, .hunk, "hunk after header (meta dropped)")
+    expectEqual(lines[2].kind, .context, "context line")
+    expectEqual(lines[2].text, "import Foundation", "context prefix stripped")
+    expectEqual(lines[3].kind, .remove, "remove line")
+    expectEqual(lines[3].text, "print(\"old\")", "remove text stripped")
+    expectEqual(lines[4].kind, .add, "add line")
+    expectEqual(lines[5].kind, .add, "second add line")
+    expectEqual(lines.count, 6, "meta lines dropped")
+
+    expectEqual(GitInfo.parseDiff("").count, 0, "empty diff parses empty")
+}
+
 // MARK: - SessionStore tests
 
 func testSessionStorePersistence() {
@@ -347,6 +376,7 @@ struct TestRunner {
         testExecutableResolution()
         testArguments()
         testTitleDerivation()
+        testDiffParsing()
         testSessionStorePersistence()
         testPanelOrdering()
 

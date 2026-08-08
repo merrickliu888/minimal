@@ -32,6 +32,11 @@ struct ConversationView: View {
                     .frame(width: 424)
                     .frame(maxHeight: .infinity)
                     .overlayCard(cornerRadius: 14)
+            } else if controller.diffVisible {
+                DiffViewerView(lines: controller.diffLines, isEmpty: controller.diffIsEmpty)
+                    .frame(width: 424)
+                    .frame(maxHeight: .infinity)
+                    .overlayCard(cornerRadius: 14)
             }
         }
         .padding(24)
@@ -164,6 +169,7 @@ struct ConversationView: View {
                 KeyHint(symbol: "⌘V", label: controller.composerTranscribing ? "stop voice" : "voice")
                 KeyHint(symbol: "⌘M", label: "model")
                 KeyHint(symbol: "⌃`", label: controller.terminalVisible ? "hide terminal" : "terminal")
+                KeyHint(symbol: "⌘⇧D", label: controller.diffVisible ? "hide diff" : "diff")
                 Spacer()
                 if let meta {
                     HStack(spacing: 4) {

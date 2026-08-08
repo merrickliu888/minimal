@@ -36,10 +36,13 @@ final class OverlayController: ObservableObject {
     /// Git branch of the open session's working directory (nil = not a repo).
     @Published private(set) var sessionBranch: String?
     private var branchTimer: Timer?
-    // Terminal pane (Ctrl+`).
+    // Right-side slot: terminal (⌃`) or diff viewer (⌘⇧D) — one at a time.
     @Published private(set) var terminalVisible = false
     @Published private(set) var activeTerminal: LocalProcessTerminalView?
-    private let terminalPaneWidth: CGFloat = 440 // pane 424 + HStack spacing 16
+    @Published private(set) var diffVisible = false
+    @Published private(set) var diffLines: [DiffLine] = []
+    @Published private(set) var diffIsEmpty = false
+    private let sidePaneWidth: CGFloat = 440 // pane 424 + HStack spacing 16
 
     let store: SessionStore
     let coordinator: AgentCoordinator
@@ -159,7 +162,7 @@ final class OverlayController: ObservableObject {
 
         case .hideOverlay:
             stopComposerTranscription()
-            collapseTerminal()
+            collapseSidePanes()
             openSessionID = nil
             confirmingArchiveID = nil
 
@@ -178,6 +181,7 @@ final class OverlayController: ObservableObject {
                 composerText = ""
                 composerBaseText = ""
                 terminalVisible = false
+                diffVisible = false
                 activeTerminal = nil
             } else {
                 model.forceMode(.management(confirmingArchive: false))
@@ -205,7 +209,7 @@ final class OverlayController: ObservableObject {
 
         case .closeConversation:
             stopComposerTranscription()
-            collapseTerminal()
+            collapseSidePanes()
             openSessionID = nil
 
         case .toggleComposerTranscription:
@@ -219,7 +223,25 @@ final class OverlayController: ObservableObject {
         }
     }
 
-    // MARK: - Terminal pane
+    // MARK: - Side panes (terminal / diff)
+
+    private func expandSideSlot(_ panel: OverlayPanel) {
+        var frame = panel.frame
+        frame.size.width += sidePaneWidth
+        if let screen = panel.screen ?? NSScreen.main {
+            let visible = screen.visibleFrame
+            if frame.maxX > visible.maxX {
+                frame.origin.x = max(visible.minX, visible.maxX - frame.width)
+            }
+        }
+        panel.setFrame(frame, display: true)
+    }
+
+    private func shrinkSideSlot(_ panel: OverlayPanel) {
+        var frame = panel.frame
+        frame.size.width -= sidePaneWidth
+        panel.setFrame(frame, display: true)
+    }
 
     /// Ctrl+`: show/hide a shell terminal beside the conversation, scoped to
     /// the agent's working directory. The window widens to make room.
@@ -230,41 +252,70 @@ final class OverlayController: ObservableObject {
               let meta = store.session(id: sessionID)
         else { return }
 
-        var frame = panel.frame
         if terminalVisible {
             terminalVisible = false
-            frame.size.width -= terminalPaneWidth
-            panel.setFrame(frame, display: true)
+            shrinkSideSlot(panel)
             panel.focusFirstTextInput()
+            return
+        }
+        let terminal = TerminalCache.shared.view(for: sessionID, workingDirectory: meta.workingDirectory)
+        activeTerminal = terminal
+        if diffVisible {
+            diffVisible = false // swap panes; width stays
         } else {
-            let terminal = TerminalCache.shared.view(for: sessionID, workingDirectory: meta.workingDirectory)
-            activeTerminal = terminal
-            terminalVisible = true
-            frame.size.width += terminalPaneWidth
-            if let screen = panel.screen ?? NSScreen.main {
-                let visible = screen.visibleFrame
-                if frame.maxX > visible.maxX {
-                    frame.origin.x = max(visible.minX, visible.maxX - frame.width)
+            expandSideSlot(panel)
+        }
+        terminalVisible = true
+        // Focus once SwiftUI has mounted the pane.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak panel, weak terminal] in
+            guard let panel, let terminal else { return }
+            panel.makeFirstResponder(terminal)
+        }
+    }
+
+    /// ⌘⇧D: show/hide uncommitted changes in the session's directory.
+    private func toggleDiff() {
+        guard case .conversation = mode,
+              let panel = conversationPanel,
+              let sessionID = openSessionID,
+              let meta = store.session(id: sessionID)
+        else { return }
+
+        if diffVisible {
+            diffVisible = false
+            shrinkSideSlot(panel)
+            panel.focusFirstTextInput()
+            return
+        }
+        let directory = meta.workingDirectory
+        Task.detached(priority: .userInitiated) {
+            let text = GitInfo.uncommittedDiff(at: directory)
+            let lines = GitInfo.parseDiff(text ?? "")
+            await MainActor.run { [weak self] in
+                guard let self, self.openSessionID == sessionID,
+                      case .conversation = self.mode,
+                      let panel = self.conversationPanel
+                else { return }
+                self.diffLines = lines
+                self.diffIsEmpty = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                if self.terminalVisible {
+                    self.terminalVisible = false // swap panes; width stays
+                } else if !self.diffVisible {
+                    self.expandSideSlot(panel)
                 }
-            }
-            panel.setFrame(frame, display: true)
-            // Focus once SwiftUI has mounted the pane.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak panel, weak terminal] in
-                guard let panel, let terminal else { return }
-                panel.makeFirstResponder(terminal)
+                self.diffVisible = true
             }
         }
     }
 
     /// Shrink the window back before hiding so the autosaved frame (and next
-    /// open) never includes the terminal pane's width.
-    private func collapseTerminal() {
-        if terminalVisible, let panel = conversationPanel {
-            var frame = panel.frame
-            frame.size.width -= terminalPaneWidth
-            panel.setFrame(frame, display: false)
+    /// open) never includes a side pane's width.
+    private func collapseSidePanes() {
+        if terminalVisible || diffVisible, let panel = conversationPanel {
+            shrinkSideSlot(panel)
         }
         terminalVisible = false
+        diffVisible = false
     }
 
     private static func joined(_ base: String, _ addition: String) -> String {
@@ -692,6 +743,10 @@ final class OverlayController: ObservableObject {
                 }
                 if c == "m" {
                     cycleSessionModel()
+                    return true
+                }
+                if c == "d" && event.modifierFlags.contains(.shift) {
+                    toggleDiff()
                     return true
                 }
                 return handleEditingCommand(event)

@@ -11,7 +11,8 @@ TEST_SOURCES = $(shell find Tests -name '*.swift' -type f | LC_ALL=C sort) \
 	Sources/Core/AgentModels.swift \
 	Sources/Core/OverlayInteractionModel.swift \
 	Sources/Core/SessionStore.swift \
-	Sources/Core/ClaudeCodeLauncher.swift
+	Sources/Core/ClaudeCodeLauncher.swift \
+	Sources/Core/GitInfo.swift
 
 empty :=
 space := $(empty) $(empty)

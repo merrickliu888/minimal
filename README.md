@@ -79,6 +79,7 @@ Open agent (conversation):
 | ⌘Y / ⌘N | Allow / deny a pending tool approval |
 | ⌘M | Switch the session's model live (cycles fable → opus → sonnet → haiku; shown in the header) |
 | ⌃` | Toggle a shell terminal pane beside the conversation (opens in the agent's working directory; keeps shell state per session) |
+| ⌘⇧D | Toggle a diff pane showing uncommitted changes in the agent's directory (shares the side slot with the terminal) |
 | esc / ⇥ | Back to the management panel |
 | ⌥Space | Close the overlay |
 
