@@ -307,11 +307,25 @@ final class OverlayController: ObservableObject {
         draftModel ?? "default"
     }
 
-    /// ⌘M: cycle through the model options.
+    /// ⌘M in the pill: cycle through the model options.
     private func cycleModel() {
         let options = ClaudeCodeLauncher.modelOptions
         let currentIndex = options.firstIndex(of: draftModel) ?? 0
         draftModel = options[(currentIndex + 1) % options.count]
+    }
+
+    /// ⌘M in the conversation: switch the open session's model live. Cycles
+    /// concrete aliases only — a live session can't return to "CLI default".
+    private func cycleSessionModel() {
+        guard let sessionID = openSessionID, let meta = store.session(id: sessionID) else { return }
+        let options = ClaudeCodeLauncher.modelOptions.compactMap { $0 }
+        let next: String
+        if let current = meta.model, let index = options.firstIndex(of: current) {
+            next = options[(index + 1) % options.count]
+        } else {
+            next = options[0]
+        }
+        coordinator.setModel(next, for: sessionID)
     }
 
     /// Display string for the pill: the directory the next agent will use.
@@ -631,6 +645,10 @@ final class OverlayController: ObservableObject {
                 if c == "y" || c == "n", let sessionID = openSessionID,
                    let request = coordinator.pendingPermissions(for: sessionID).first {
                     coordinator.respondToPermission(sessionID: sessionID, requestID: request.id, allow: c == "y")
+                    return true
+                }
+                if c == "m" {
+                    cycleSessionModel()
                     return true
                 }
                 return handleEditingCommand(event)

@@ -139,6 +139,16 @@ enum StreamJSON {
         return serializeLine(payload)
     }
 
+    /// Live model switch (control channel; the CLI answers with a
+    /// control_response and subsequent turns use the new model).
+    static func encodeSetModel(requestID: String, model: String) -> String? {
+        serializeLine([
+            "type": "control_request",
+            "request_id": requestID,
+            "request": ["subtype": "set_model", "model": model],
+        ])
+    }
+
     private static func serializeLine(_ payload: [String: Any]) -> String? {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let line = String(data: data, encoding: .utf8)

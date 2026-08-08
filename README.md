@@ -77,6 +77,7 @@ Open agent (conversation):
 | ⇧⏎ | Newline |
 | ⌘V | Toggle voice input into the composer |
 | ⌘Y / ⌘N | Allow / deny a pending tool approval |
+| ⌘M | Switch the session's model live (cycles fable → opus → sonnet → haiku; shown in the header) |
 | ⌃` | Toggle a shell terminal pane beside the conversation (opens in the agent's working directory; keeps shell state per session) |
 | esc / ⇥ | Back to the management panel |
 | ⌥Space | Close the overlay |

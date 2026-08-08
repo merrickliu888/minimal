@@ -98,6 +98,13 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
         liveRuns[sessionID]?.respondToPermission(requestID: requestID, allow: allow)
     }
 
+    /// Switch a session's model: live via the control channel when the
+    /// process is running, and persisted so restarts/resumes keep it.
+    func setModel(_ model: String, for sessionID: UUID) {
+        store.update(id: sessionID) { $0.model = model }
+        liveRuns[sessionID]?.setModel(model)
+    }
+
     func pendingPermissions(for sessionID: UUID) -> [PermissionRequest] {
         liveRuns[sessionID]?.pendingPermissions ?? []
     }

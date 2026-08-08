@@ -50,6 +50,13 @@ struct ConversationView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
+                HStack(spacing: 3) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 9))
+                    Text(meta.model ?? "default")
+                        .font(.system(size: 10, design: .monospaced))
+                }
+                .foregroundStyle(meta.model == nil ? Theme.textSecondary : Theme.accent)
             }
             Spacer()
             KeyHint(symbol: "esc", label: "back")
@@ -152,6 +159,7 @@ struct ConversationView: View {
                 KeyHint(symbol: "⏎", label: "send")
                 KeyHint(symbol: "⇧⏎", label: "newline")
                 KeyHint(symbol: "⌘V", label: controller.composerTranscribing ? "stop voice" : "voice")
+                KeyHint(symbol: "⌘M", label: "model")
                 KeyHint(symbol: "⌃`", label: controller.terminalVisible ? "hide terminal" : "terminal")
                 Spacer()
             }

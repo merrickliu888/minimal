@@ -263,6 +263,15 @@ func testArguments() {
     expect(modelArgs.contains("haiku"), "model alias present")
 
     expectEqual(ClaudeCodeLauncher.modelOptions.first ?? "x", nil, "first model option is CLI default")
+
+    // Live model-switch control request
+    let setModel = StreamJSON.encodeSetModel(requestID: "r1", model: "sonnet")!
+    let decodedSetModel = try! JSONSerialization.jsonObject(with: setModel.data(using: .utf8)!) as! [String: Any]
+    expectEqual(decodedSetModel["type"] as! String, "control_request", "set_model type")
+    expectEqual(decodedSetModel["request_id"] as! String, "r1", "set_model request id")
+    let request = decodedSetModel["request"] as! [String: Any]
+    expectEqual(request["subtype"] as! String, "set_model", "set_model subtype")
+    expectEqual(request["model"] as! String, "sonnet", "set_model model")
 }
 
 func testTitleDerivation() {

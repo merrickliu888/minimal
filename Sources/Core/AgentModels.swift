@@ -98,6 +98,8 @@ protocol AgentRun: AnyObject {
     var pendingPermissions: [PermissionRequest] { get }
     /// Send a user message into the conversation.
     func send(text: String)
+    /// Switch the model for subsequent turns of this live conversation.
+    func setModel(_ model: String)
     /// Answer a pending tool-approval request.
     func respondToPermission(requestID: String, allow: Bool)
     /// Stop the underlying process. The session may later be resumed.

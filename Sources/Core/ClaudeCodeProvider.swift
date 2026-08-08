@@ -221,6 +221,13 @@ final class ClaudeCodeRun: AgentRun {
         delegate?.agentRun(self, didChangeState: .running, detail: "Working…")
     }
 
+    func setModel(_ model: String) {
+        guard let line = StreamJSON.encodeSetModel(
+            requestID: UUID().uuidString.lowercased(), model: model
+        ) else { return }
+        writeLine(line)
+    }
+
     func respondToPermission(requestID: String, allow: Bool) {
         guard let index = pendingPermissions.firstIndex(where: { $0.id == requestID }) else { return }
         let request = pendingPermissions.remove(at: index)
