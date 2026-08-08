@@ -313,7 +313,7 @@ func testDiffParsing() {
 
 func testSessionStorePersistence() {
     let dir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("assistant-tests-\(UUID().uuidString)")
+        .appendingPathComponent("overlay-tests-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: dir) }
 
     let store = SessionStore(directory: dir)
@@ -343,7 +343,7 @@ func testSessionStorePersistence() {
 
 func testPanelOrdering() {
     let dir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("assistant-tests-\(UUID().uuidString)")
+        .appendingPathComponent("overlay-tests-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: dir) }
     let store = SessionStore(directory: dir)
 

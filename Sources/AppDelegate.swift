@@ -68,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             window.contentViewController = hosting
             window.setContentSize(NSSize(width: 540, height: 640))
-            window.title = "Assistant"
+            window.title = "Overlay"
             window.isReleasedWhenClosed = false
             window.center()
             settingsWindow = window

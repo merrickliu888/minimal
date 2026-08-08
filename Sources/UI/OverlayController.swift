@@ -593,7 +593,7 @@ final class OverlayController: ObservableObject {
         }
     }
 
-    private static let conversationFrameKey = "AssistantConversationFrame"
+    private static let conversationFrameKey = "OverlayConversationFrame"
 
     private func presentConversationPanel(on screen: NSScreen) {
         let defaultSize = NSSize(width: 808, height: 668)

@@ -1,5 +1,5 @@
-APP_NAME ?= Assistant
-BUNDLE_ID ?= dev.assistant.overlay
+APP_NAME ?= Overlay
+BUNDLE_ID ?= dev.overlay.app
 CODESIGN_IDENTITY ?= -
 ARCH ?= $(shell uname -m)
 BUILD_DIR = build
@@ -30,7 +30,7 @@ all: app
 
 # The app is built with SwiftPM (external dependency: Textual for markdown
 # rendering); the bundle is still assembled by hand.
-app: $(SOURCES) Package.swift Info.plist Assistant.entitlements
+app: $(SOURCES) Package.swift Info.plist Overlay.entitlements
 	swift build -c release
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
 	@cp "$(SPM_BIN)/$(APP_NAME)" "$(MACOS_DIR)/$(APP_NAME)"
@@ -44,7 +44,7 @@ app: $(SOURCES) Package.swift Info.plist Assistant.entitlements
 	@plutil -replace CFBundleDisplayName -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"
 	@plutil -replace CFBundleExecutable -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"
 	@plutil -replace CFBundleIdentifier -string "$(BUNDLE_ID)" "$(CONTENTS)/Info.plist"
-	@codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" --entitlements Assistant.entitlements "$(APP_BUNDLE)"
+	@codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" --entitlements Overlay.entitlements "$(APP_BUNDLE)"
 	@echo "Built $(APP_BUNDLE)"
 
 run: app
@@ -53,11 +53,11 @@ run: app
 test:
 	@mkdir -p $(BUILD_DIR)
 	swiftc -parse-as-library \
-		-o $(BUILD_DIR)/assistant-tests \
+		-o $(BUILD_DIR)/overlay-tests \
 		-sdk "$(SDK)" \
 		-target $(ARCH)-apple-macosx$(MIN_MACOS) \
 		$(TEST_SOURCES)
-	$(BUILD_DIR)/assistant-tests
+	$(BUILD_DIR)/overlay-tests
 
 clean:
 	rm -rf $(BUILD_DIR) .build

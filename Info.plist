@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>Assistant</string>
+	<string>Overlay</string>
 	<key>CFBundleDisplayName</key>
-	<string>Assistant</string>
+	<string>Overlay</string>
 	<key>CFBundleExecutable</key>
-	<string>Assistant</string>
+	<string>Overlay</string>
 	<key>CFBundleIdentifier</key>
-	<string>dev.assistant.overlay</string>
+	<string>dev.overlay.app</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -21,8 +21,8 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Assistant needs microphone access to transcribe your voice prompts for AI agents.</string>
+	<string>Overlay needs microphone access to transcribe your voice prompts for AI agents.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Assistant uses speech recognition to turn your voice into agent prompts.</string>
+	<string>Overlay uses speech recognition to turn your voice into agent prompts.</string>
 </dict>
 </plist>

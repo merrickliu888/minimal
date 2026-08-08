@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct AssistantApp: App {
+struct OverlayApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
@@ -40,7 +40,7 @@ struct MenuBarView: View {
             Button("Settings…") {
                 appDelegate.showSettingsWindow()
             }
-            Button("Quit Assistant") {
+            Button("Quit Overlay") {
                 NSApp.terminate(nil)
             }
         }

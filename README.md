@@ -1,4 +1,4 @@
-# Assistant
+# Overlay
 
 A macOS overlay for creating and managing AI coding agents without leaving
 whatever you're doing — a system-wide HUD in the spirit of JARVIS, with the
@@ -96,7 +96,7 @@ Requirements: macOS 14+, Xcode command-line tools, and a working
 or in a standard location; you must be logged in).
 
 ```bash
-make            # build build/Assistant.app
+make            # build build/Overlay.app
 make run        # build and launch
 make test       # unit tests for the pure core (protocol, state machine, store)
 ```

@@ -9,7 +9,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Assistant Setup")
+                Text("Overlay Setup")
                     .font(.title2.weight(.semibold))
                 Text("Grant the required permissions and connect Claude Code, then summon the overlay with ⌥Space from any app.")
                     .font(.system(size: 12))
