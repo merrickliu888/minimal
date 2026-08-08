@@ -27,15 +27,17 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
 
     // MARK: - Session lifecycle
 
-    /// Start a brand-new agent from the prompt pill. Returns the session id
-    /// so the overlay can open its conversation immediately.
+    /// Start a brand-new agent from the prompt pill, scoped to the given
+    /// directory (Settings default when nil). Returns the session id so the
+    /// overlay can open its conversation immediately.
     @discardableResult
-    func startAgent(prompt: String) -> UUID {
+    func startAgent(prompt: String, workingDirectory: String? = nil, model: String? = nil) -> UUID {
         let meta = AgentSessionMeta(
             providerID: provider.id,
             providerSessionID: nil,
             title: ClaudeCodeLauncher.title(fromPrompt: prompt),
-            workingDirectory: defaultWorkingDirectory,
+            workingDirectory: workingDirectory ?? defaultWorkingDirectory,
+            model: model,
             state: .running,
             statusDetail: "Starting…"
         )
@@ -46,6 +48,7 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
                 sessionID: meta.id,
                 initialPrompt: prompt,
                 workingDirectory: meta.workingDirectory,
+                model: meta.model,
                 resumeProviderSessionID: nil
             )
             run.delegate = self
@@ -72,6 +75,7 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
                 sessionID: sessionID,
                 initialPrompt: text,
                 workingDirectory: meta.workingDirectory,
+                model: meta.model,
                 resumeProviderSessionID: meta.providerSessionID
             )
             run.delegate = self

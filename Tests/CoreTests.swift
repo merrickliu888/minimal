@@ -251,6 +251,13 @@ func testArguments() {
     expect(resumeArgs.contains("--resume"), "resume flag present")
     expect(resumeArgs.contains("abc-123"), "resume id present")
     expect(!resumeArgs.contains("--session-id"), "no session-id when resuming")
+    expect(!resumeArgs.contains("--model"), "no model flag by default")
+
+    let modelArgs = ClaudeCodeLauncher.arguments(sessionID: id, resumeSessionID: nil, model: "haiku")
+    expect(modelArgs.contains("--model"), "model flag present")
+    expect(modelArgs.contains("haiku"), "model alias present")
+
+    expectEqual(ClaudeCodeLauncher.modelOptions.first ?? "x", nil, "first model option is CLI default")
 }
 
 func testTitleDerivation() {

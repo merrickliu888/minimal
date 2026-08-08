@@ -91,10 +91,29 @@ struct PromptPillView: View {
                 if isFocused {
                     KeyHint(symbol: "⏎", label: "start agent")
                     KeyHint(symbol: "⌘V", label: "voice")
+                    KeyHint(symbol: "⌘P", label: "directory")
+                    KeyHint(symbol: "⌘M", label: "model")
                 } else {
                     KeyHint(symbol: "⇥", label: "focus")
                 }
                 Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 9))
+                    Text(controller.pillModelDisplay)
+                        .font(.system(size: 10, design: .monospaced))
+                }
+                .foregroundStyle(controller.draftModel == nil ? Theme.textSecondary : Theme.accent)
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 9))
+                    Text(controller.pillWorkingDirectoryDisplay)
+                        .font(.system(size: 10, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
+                .foregroundStyle(Theme.textSecondary)
+                .frame(maxWidth: 280, alignment: .trailing)
             }
         }
         .padding(.horizontal, 18)

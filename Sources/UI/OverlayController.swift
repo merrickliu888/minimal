@@ -12,6 +12,19 @@ final class OverlayController: ObservableObject {
     @Published private(set) var mode: OverlayMode = .hidden
     // Prompt pill.
     @Published var draftText: String = ""
+    /// Directory the next agent will work in; nil = Settings default.
+    /// Persisted so the choice survives overlay toggles and app restarts.
+    @Published var draftWorkingDirectory: String? {
+        didSet {
+            UserDefaults.standard.set(draftWorkingDirectory, forKey: Self.pickedDirectoryKey)
+        }
+    }
+    private static let pickedDirectoryKey = "agentPickedWorkingDirectory"
+    /// Model alias for the next agent; nil = CLI default. Persisted.
+    @Published var draftModel: String? {
+        didSet { UserDefaults.standard.set(draftModel, forKey: Self.pickedModelKey) }
+    }
+    private static let pickedModelKey = "agentPickedModel"
     // Management panel.
     @Published var selectedIndex: Int = 0
     @Published var confirmingArchiveID: UUID?
@@ -45,6 +58,17 @@ final class OverlayController: ObservableObject {
         self.store = store
         self.coordinator = coordinator
         self.transcriber = transcriber
+        // Restore the last-picked directory, dropping it if it vanished.
+        if let saved = UserDefaults.standard.string(forKey: Self.pickedDirectoryKey) {
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: saved, isDirectory: &isDirectory), isDirectory.boolValue {
+                draftWorkingDirectory = saved
+            }
+        }
+        if let savedModel = UserDefaults.standard.string(forKey: Self.pickedModelKey),
+           ClaudeCodeLauncher.modelOptions.contains(savedModel) {
+            draftModel = savedModel
+        }
 
         // Live-mirror transcription into whichever field is listening.
         transcriber.$partialText
@@ -213,9 +237,64 @@ final class OverlayController: ObservableObject {
             mode = .hidden
             return
         }
-        openSessionID = coordinator.startAgent(prompt: prompt)
+        openSessionID = coordinator.startAgent(
+            prompt: prompt, workingDirectory: draftWorkingDirectory, model: draftModel
+        )
         composerText = ""
         composerBaseText = ""
+    }
+
+    /// Display string for the pill's model indicator.
+    var pillModelDisplay: String {
+        draftModel ?? "default"
+    }
+
+    /// ⌘M: cycle through the model options.
+    private func cycleModel() {
+        let options = ClaudeCodeLauncher.modelOptions
+        let currentIndex = options.firstIndex(of: draftModel) ?? 0
+        draftModel = options[(currentIndex + 1) % options.count]
+    }
+
+    /// Display string for the pill: the directory the next agent will use.
+    var pillWorkingDirectoryDisplay: String {
+        ((draftWorkingDirectory ?? coordinator.defaultWorkingDirectory) as NSString).abbreviatingWithTildeInPath
+    }
+
+    /// ⌘P: pick the directory the agent is scoped to. Uses the system open
+    /// panel (keyboard-navigable; ⌘⇧G accepts a typed path).
+    private func pickWorkingDirectory() {
+        let pillWasVisible = pillPanel?.isVisible ?? false
+        let managementWasVisible = managementPanel?.isVisible ?? false
+        // Order out (not dismiss) so the pill's state/hierarchy survives.
+        pillPanel?.orderOut(nil)
+        managementPanel?.orderOut(nil)
+
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.message = "Choose the directory this agent will work in"
+        panel.prompt = "Use Directory"
+        panel.directoryURL = URL(
+            fileURLWithPath: draftWorkingDirectory ?? coordinator.defaultWorkingDirectory,
+            isDirectory: true
+        )
+        if panel.runModal() == .OK, let url = panel.url {
+            draftWorkingDirectory = url.path
+        }
+        NSApp.deactivate()
+
+        if case .promptEntry = mode {
+            if managementWasVisible { managementPanel?.orderFrontRegardless() }
+            if pillWasVisible {
+                pillPanel?.orderFrontRegardless()
+                pillPanel?.makeKey()
+                pillPanel?.focusFirstTextInput()
+            }
+        }
     }
 
     // MARK: - Selection
@@ -387,6 +466,12 @@ final class OverlayController: ObservableObject {
 
     /// Returns true when the event was consumed.
     private func route(_ event: NSEvent) -> Bool {
+        // Only interpret keys aimed at our overlay panels. When some other
+        // window is key (the directory picker, the settings window), the
+        // user is typing into it — never treat that as overlay shortcuts.
+        if let keyWindow = NSApp.keyWindow, !(keyWindow is OverlayPanel) {
+            return false
+        }
         switch mode {
         case .hidden:
             return false
@@ -401,11 +486,19 @@ final class OverlayController: ObservableObject {
                 return true
             default:
                 if event.modifierFlags.contains(.command) {
-                    if event.charactersIgnoringModifiers?.lowercased() == "v" {
+                    switch event.charactersIgnoringModifiers?.lowercased() {
+                    case "v":
                         feed(.voiceKey)
                         return true
+                    case "p":
+                        pickWorkingDirectory()
+                        return true
+                    case "m":
+                        cycleModel()
+                        return true
+                    default:
+                        return handleEditingCommand(event)
                     }
-                    return handleEditingCommand(event)
                 }
                 if transcribing, let c = typedCharacter(event) {
                     feed(.character(c))

@@ -47,6 +47,9 @@ struct AgentSessionMeta: Identifiable, Codable, Equatable {
     var title: String
     /// Working directory the agent was started in.
     var workingDirectory: String
+    /// Model alias the session was started with (nil = CLI default). Reused
+    /// on resume so a session keeps its model.
+    var model: String?
     var state: AgentState
     /// One-line summary of the latest activity, for the panel.
     var statusDetail: String?
@@ -114,6 +117,7 @@ protocol AgentProvider: AnyObject {
         sessionID: UUID,
         initialPrompt: String?,
         workingDirectory: String,
+        model: String?,
         resumeProviderSessionID: String?
     ) throws -> AgentRun
 }

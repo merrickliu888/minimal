@@ -47,6 +47,8 @@ Prompt entry (bottom pill):
 | Key | Action |
 |---|---|
 | ⌘V | Toggle voice transcription (appends to typed text) |
+| ⌘P | Choose the directory the agent works in (shown bottom-right of the pill; ⌘⇧G in the picker accepts a typed path) |
+| ⌘M | Cycle the agent's model (default → fable → opus → sonnet → haiku) |
 | any typing key | While listening: stop transcription, keep typing |
 | ⏎ | Submit prompt, start agent, open its conversation |
 | ⇥ | Move focus to the agent panel |

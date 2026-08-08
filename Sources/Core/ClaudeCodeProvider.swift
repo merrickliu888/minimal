@@ -64,6 +64,7 @@ final class ClaudeCodeProvider: AgentProvider {
         sessionID: UUID,
         initialPrompt: String?,
         workingDirectory: String,
+        model: String?,
         resumeProviderSessionID: String?
     ) throws -> AgentRun {
         guard let executable = resolvedExecutable else {
@@ -75,6 +76,7 @@ final class ClaudeCodeProvider: AgentProvider {
             sessionID: sessionID,
             executable: executable,
             workingDirectory: workingDirectory,
+            model: model,
             resumeProviderSessionID: resumeProviderSessionID
         )
         try run.start()
@@ -106,6 +108,7 @@ final class ClaudeCodeRun: AgentRun {
 
     private let executable: String
     private let workingDirectory: String
+    private let model: String?
     private let resumeProviderSessionID: String?
 
     private let process = Process()
@@ -118,10 +121,11 @@ final class ClaudeCodeRun: AgentRun {
     private var turnInFlight = false
     private var terminatedByUs = false
 
-    init(sessionID: UUID, executable: String, workingDirectory: String, resumeProviderSessionID: String?) {
+    init(sessionID: UUID, executable: String, workingDirectory: String, model: String?, resumeProviderSessionID: String?) {
         self.sessionID = sessionID
         self.executable = executable
         self.workingDirectory = workingDirectory
+        self.model = model
         self.resumeProviderSessionID = resumeProviderSessionID
     }
 
@@ -129,7 +133,8 @@ final class ClaudeCodeRun: AgentRun {
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = ClaudeCodeLauncher.arguments(
             sessionID: sessionID,
-            resumeSessionID: resumeProviderSessionID
+            resumeSessionID: resumeProviderSessionID,
+            model: model
         )
         process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
         process.environment = ClaudeCodeProvider.childEnvironment()
