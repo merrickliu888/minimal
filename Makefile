@@ -3,7 +3,7 @@ BUNDLE_ID ?= dev.assistant.overlay
 CODESIGN_IDENTITY ?= -
 ARCH ?= $(shell uname -m)
 BUILD_DIR = build
-MIN_MACOS = 14.0
+MIN_MACOS = 15.0
 
 SOURCES = $(shell find Sources -name '*.swift' -type f | LC_ALL=C sort)
 TEST_SOURCES = $(shell find Tests -name '*.swift' -type f | LC_ALL=C sort) \
@@ -21,19 +21,23 @@ MACOS_DIR = $(CONTENTS)/MacOS
 RESOURCES = $(CONTENTS)/Resources
 
 SDK = $(shell xcrun --show-sdk-path)
+SPM_BIN = .build/release
 
 .PHONY: all app run test clean
 
 all: app
 
-app: $(SOURCES) Info.plist Assistant.entitlements
+# The app is built with SwiftPM (external dependency: Textual for markdown
+# rendering); the bundle is still assembled by hand.
+app: $(SOURCES) Package.swift Info.plist Assistant.entitlements
+	swift build -c release
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
-	swiftc -parse-as-library \
-		-o "$(MACOS_DIR)/$(APP_NAME)" \
-		-sdk "$(SDK)" \
-		-target $(ARCH)-apple-macosx$(MIN_MACOS) \
-		-O \
-		$(SOURCES)
+	@cp "$(SPM_BIN)/$(APP_NAME)" "$(MACOS_DIR)/$(APP_NAME)"
+	@# SwiftPM resource bundles (e.g. Textual's syntax highlighter grammars)
+	@# must sit in Contents/Resources for Bundle.module to resolve.
+	@for b in "$(SPM_BIN)"/*.bundle; do \
+		[ -e "$$b" ] && cp -R "$$b" "$(RESOURCES)/" || true; \
+	done
 	@cp Info.plist "$(CONTENTS)/"
 	@plutil -replace CFBundleName -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"
 	@plutil -replace CFBundleDisplayName -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"
@@ -55,4 +59,4 @@ test:
 	$(BUILD_DIR)/assistant-tests
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) .build

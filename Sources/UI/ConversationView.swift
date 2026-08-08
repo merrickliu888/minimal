@@ -1,4 +1,5 @@
 import SwiftUI
+import Textual
 
 /// Large conversation overlay: the agent's transcript (messages and tool
 /// actions, Claude Code style) plus a composer with voice input.
@@ -168,9 +169,10 @@ struct MessageRow: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
         case .assistant:
-            Text(message.text)
+            // Textual renders the markdown Claude emits (code blocks with
+            // syntax highlighting, lists, tables) with native text selection.
+            StructuredText(markdown: message.text)
                 .font(.system(size: 12.5))
-                .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
         case .tool:
