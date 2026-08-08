@@ -427,11 +427,18 @@ final class OverlayController: ObservableObject {
         }
     }
 
+    private static let conversationFrameKey = "AssistantConversationFrame"
+
     private func presentConversationPanel(on screen: NSScreen) {
-        // Card 760x620 + 24 shadow margin all around.
-        let size = NSSize(width: 808, height: 668)
-        let panel = conversationPanel ?? OverlayPanel(size: size)
-        conversationPanel = panel
+        let defaultSize = NSSize(width: 808, height: 668)
+        let panel: OverlayPanel
+        if let existing = conversationPanel {
+            panel = existing
+        } else {
+            panel = OverlayPanel(size: defaultSize, movableByBackground: true)
+            panel.minSize = NSSize(width: 560, height: 440)
+            conversationPanel = panel
+        }
         if panel.isVisible {
             panel.makeKey()
             return
@@ -442,12 +449,18 @@ final class OverlayController: ObservableObject {
                 .environmentObject(store)
                 .environmentObject(transcriber)
         )
-        let frame = NSRect(
-            x: screen.visibleFrame.midX - size.width / 2,
-            y: screen.visibleFrame.midY - size.height / 2 + 20,
-            width: size.width, height: size.height
-        )
-        panel.present(on: screen, frame: frame)
+        // Restore wherever the user last dragged/sized it; center on first use.
+        if !panel.setFrameUsingName(Self.conversationFrameKey) {
+            panel.setFrame(NSRect(
+                x: screen.visibleFrame.midX - defaultSize.width / 2,
+                y: screen.visibleFrame.midY - defaultSize.height / 2 + 20,
+                width: defaultSize.width, height: defaultSize.height
+            ), display: true)
+        }
+        panel.setFrameAutosaveName(Self.conversationFrameKey)
+        panel.alphaValue = 1
+        panel.orderFrontRegardless()
+        panel.makeKey()
     }
 
     // MARK: - Key routing

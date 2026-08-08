@@ -7,7 +7,7 @@ final class OverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
-    init(size: NSSize) {
+    init(size: NSSize, movableByBackground: Bool = false) {
         super.init(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -21,7 +21,7 @@ final class OverlayPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
-        isMovableByWindowBackground = false
+        isMovableByWindowBackground = movableByBackground
     }
 
     func setRootView<V: View>(_ view: V) {

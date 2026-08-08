@@ -21,10 +21,8 @@ struct ConversationView: View {
             Divider().opacity(0.4)
             composer
         }
-        .frame(width: 760, height: 620)
+        .frame(minWidth: 512, maxWidth: .infinity, minHeight: 392, maxHeight: .infinity)
         .overlayCard(cornerRadius: 14)
-        // Room for the card's shadow to fall off inside the panel window —
-        // without it the shadow clips at the window edge as a hard gray line.
         .padding(24)
     }
 
@@ -47,6 +45,7 @@ struct ConversationView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .background(WindowDragArea())
     }
 
     @ViewBuilder

@@ -68,6 +68,19 @@ extension View {
     }
 }
 
+/// Invisible view that lets the user drag the window by the area behind it
+/// (e.g. a header bar).
+struct WindowDragArea: NSViewRepresentable {
+    final class DragView: NSView {
+        override func mouseDown(with event: NSEvent) {
+            window?.performDrag(with: event)
+        }
+    }
+
+    func makeNSView(context: Context) -> NSView { DragView() }
+    func updateNSView(_ view: NSView, context: Context) {}
+}
+
 /// Small key-cap hint, e.g. ⏎ or A.
 struct KeyHint: View {
     let symbol: String
