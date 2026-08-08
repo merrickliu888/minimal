@@ -113,7 +113,6 @@ protocol AgentProvider: AnyObject {
     func startRun(
         sessionID: UUID,
         initialPrompt: String?,
-        screenshotPath: String?,
         workingDirectory: String,
         resumeProviderSessionID: String?
     ) throws -> AgentRun

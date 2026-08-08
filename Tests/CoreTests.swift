@@ -87,17 +87,6 @@ func testPermissionProtocol() {
     expectEqual(StreamJSON.parseLine(other), .ignored, "non-permission control requests ignored")
 }
 
-func testImageMessageEncoding() {
-    let line = StreamJSON.encodeUserMessage(text: "look", imageBase64: "QUJD", imageMediaType: "image/jpeg")!
-    let decoded = try! JSONSerialization.jsonObject(with: line.data(using: .utf8)!) as! [String: Any]
-    let content = ((decoded["message"] as! [String: Any])["content"] as! [[String: Any]])
-    expectEqual(content.count, 2, "text + image blocks")
-    expectEqual(content[0]["type"] as! String, "text", "text first")
-    let source = (content[1]["source"] as! [String: Any])
-    expectEqual(source["data"] as! String, "QUJD", "base64 payload")
-    expectEqual(source["media_type"] as! String, "image/jpeg", "media type")
-}
-
 func testToolSummaries() {
     expectEqual(StreamJSON.toolSummary(name: "Edit", input: ["file_path": "/Users/x/proj/main.swift"]), "/Users/x/proj/main.swift", "edit summary")
     let long = String(repeating: "x", count: 200)
@@ -109,33 +98,69 @@ func testToolSummaries() {
 
 func testPromptEntryFlow() {
     var m = OverlayInteractionModel()
-    expectEqual(m.handle(.promptHotkey), [.showPromptPill, .startTranscription], "opt+space opens pill")
+    // Text entry is the default mode.
+    expectEqual(m.handle(.promptHotkey), [.showPromptPill, .beginEditing(seed: nil)], "opt+space opens pill in text mode")
+    expectEqual(m.mode, .promptEntry(transcribing: false), "editing state by default")
+
+    // Cmd+V toggles voice on…
+    expectEqual(m.handle(.voiceKey), [.startTranscription], "cmd+v starts voice")
     expectEqual(m.mode, .promptEntry(transcribing: true), "transcribing state")
 
-    // Opt+Space again stops transcription -> editing
-    expectEqual(m.handle(.promptHotkey), [.stopTranscription, .beginEditing(seed: nil)], "opt+space stops")
-    expectEqual(m.mode, .promptEntry(transcribing: false), "editing state")
-
-    // Opt+Space restarts transcription
-    expectEqual(m.handle(.promptHotkey), [.startTranscription], "opt+space restarts")
+    // …and off again
+    expectEqual(m.handle(.voiceKey), [.stopTranscription, .beginEditing(seed: nil)], "cmd+v stops voice")
+    expectEqual(m.mode, .promptEntry(transcribing: false), "back to editing")
 
     // Typing a key while transcribing stops and seeds the field
+    _ = m.handle(.voiceKey)
     expectEqual(m.handle(.character("f")), [.stopTranscription, .beginEditing(seed: "f")], "typing stops transcription")
 
-    // Return submits
-    expectEqual(m.handle(.returnKey), [.submitPrompt, .hideOverlay], "return submits")
-    expectEqual(m.mode, .hidden, "hidden after submit")
+    // Return submits and opens the new agent's conversation
+    expectEqual(m.handle(.returnKey), [.submitPrompt], "return submits")
+    expectEqual(m.mode, .conversation, "conversation stays open after submit")
+
+    // Escape from there returns to the management panel
+    expectEqual(m.handle(.escape), [.closeConversation, .showManagement], "escape to management")
 }
 
 func testPromptEscapeAndTab() {
     var m = OverlayInteractionModel()
     _ = m.handle(.promptHotkey)
-    expectEqual(m.handle(.escape), [.stopTranscription, .hideOverlay], "escape closes while transcribing")
+    expectEqual(m.handle(.escape), [.hideOverlay], "escape closes from text mode")
     expectEqual(m.mode, .hidden, "hidden after escape")
 
     _ = m.handle(.promptHotkey)
-    expectEqual(m.handle(.tab), [.stopTranscription, .showManagement], "tab moves to management")
+    _ = m.handle(.voiceKey) // voice on
+    expectEqual(m.handle(.escape), [.stopTranscription, .hideOverlay], "escape closes while transcribing")
+    expectEqual(m.mode, .hidden, "hidden after escape from voice")
+
+    _ = m.handle(.promptHotkey)
+    expectEqual(m.handle(.tab), [.showManagement], "tab moves to management")
     expectEqual(m.mode, .management(confirmingArchive: false), "management mode after tab")
+
+    // Tab cycles back to the prompt field without clearing the draft
+    // (no .showPromptPill, which would reset it).
+    expectEqual(m.handle(.tab), [.beginEditing(seed: nil)], "tab returns to prompt field")
+    expectEqual(m.mode, .promptEntry(transcribing: false), "editing mode after tab back")
+}
+
+func testOverlayToggle() {
+    var m = OverlayInteractionModel()
+    // ⌥Space toggles the overlay from every visible mode.
+    _ = m.handle(.promptHotkey)
+    expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes from text mode")
+    expectEqual(m.mode, .hidden, "hidden after toggle")
+
+    _ = m.handle(.promptHotkey)
+    _ = m.handle(.voiceKey)
+    expectEqual(m.handle(.promptHotkey), [.stopTranscription, .hideOverlay], "opt+space closes while transcribing")
+
+    _ = m.handle(.managementHotkey)
+    expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes from management")
+
+    _ = m.handle(.managementHotkey)
+    _ = m.handle(.character("d")) // needs a session in reality; model still transitions
+    expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes from conversation")
+    expectEqual(m.mode, .hidden, "hidden after closing conversation")
 }
 
 func testManagementNavigation() {
@@ -186,7 +211,7 @@ func testConversationMode() {
     _ = m.handle(.character("d"))
     expectEqual(m.mode, .conversation, "in conversation")
 
-    expectEqual(m.handle(.promptHotkey), [.toggleComposerTranscription], "opt+space toggles composer voice")
+    expectEqual(m.handle(.voiceKey), [.toggleComposerTranscription], "cmd+v toggles composer voice")
     expectEqual(m.mode, .conversation, "still in conversation")
 
     // Typing keys are not interpreted as commands in conversation mode
@@ -228,12 +253,7 @@ func testArguments() {
     expect(!resumeArgs.contains("--session-id"), "no session-id when resuming")
 }
 
-func testInitialPromptAndTitle() {
-    expectEqual(ClaudeCodeLauncher.initialPrompt(userPrompt: "hi", screenshotPath: nil), "hi", "no screenshot")
-    let withShot = ClaudeCodeLauncher.initialPrompt(userPrompt: "hi", screenshotPath: "/tmp/s.png")
-    expect(withShot.contains("/tmp/s.png"), "screenshot path referenced")
-    expect(withShot.hasPrefix("hi"), "prompt comes first")
-
+func testTitleDerivation() {
     expectEqual(ClaudeCodeLauncher.title(fromPrompt: "  fix   the\nlogin bug  "), "fix the login bug", "title collapses whitespace")
     expect(ClaudeCodeLauncher.title(fromPrompt: String(repeating: "word ", count: 40)).count <= 49, "title truncated")
     expectEqual(ClaudeCodeLauncher.title(fromPrompt: "   "), "New agent", "empty prompt fallback")
@@ -296,16 +316,16 @@ struct TestRunner {
     static func main() {
         testStreamJSONParsing()
         testPermissionProtocol()
-        testImageMessageEncoding()
         testToolSummaries()
         testPromptEntryFlow()
         testPromptEscapeAndTab()
+        testOverlayToggle()
         testManagementNavigation()
         testArchiveConfirmation()
         testConversationMode()
         testExecutableResolution()
         testArguments()
-        testInitialPromptAndTitle()
+        testTitleDerivation()
         testSessionStorePersistence()
         testPanelOrdering()
 

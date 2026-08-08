@@ -31,14 +31,27 @@ final class Transcriber: NSObject, ObservableObject {
         partialText = ""
 
         let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer()
-        guard let recognizer, recognizer.isAvailable else {
-            lastError = "Speech recognition is unavailable for this language/device."
+        guard let recognizer else {
+            lastError = "Speech recognition is unavailable for this language."
+            NSLog("Transcriber: no recognizer for locale \(Locale.current.identifier)")
+            return
+        }
+        NSLog("Transcriber: recognizer locale=\(recognizer.locale.identifier) available=\(recognizer.isAvailable) onDevice=\(recognizer.supportsOnDeviceRecognition) auth=\(SFSpeechRecognizer.authorizationStatus().rawValue)")
+        guard recognizer.isAvailable else {
+            lastError = recognizer.supportsOnDeviceRecognition
+                ? "Speech recognition is temporarily unavailable."
+                : "Speech recognition is unavailable — enable Dictation in System Settings → Keyboard, or check your network."
             return
         }
         self.recognizer = recognizer
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        // On-device recognition works offline and doesn't depend on
+        // Siri/Dictation server availability.
+        if recognizer.supportsOnDeviceRecognition {
+            request.requiresOnDeviceRecognition = true
+        }
         self.request = request
 
         let input = audioEngine.inputNode
@@ -60,12 +73,14 @@ final class Transcriber: NSObject, ObservableObject {
                 if let result {
                     self.partialText = result.bestTranscription.formattedString
                 }
-                if let error, self.isActive {
+                if let error {
+                    let ns = error as NSError
+                    NSLog("Transcriber: recognition error domain=\(ns.domain) code=\(ns.code) \(ns.localizedDescription)")
+                    guard self.isActive else { return }
                     // "No speech detected" style errors arrive on cancel too;
                     // only surface them while we're supposed to be listening.
-                    let ns = error as NSError
                     if ns.domain != "kAFAssistantErrorDomain" || ns.code != 216 { // 216 = canceled
-                        self.lastError = error.localizedDescription
+                        self.lastError = ns.localizedDescription
                     }
                     self.stopEngineOnly()
                 }
@@ -76,6 +91,7 @@ final class Transcriber: NSObject, ObservableObject {
         do {
             try audioEngine.start()
             isActive = true
+            NSLog("Transcriber: engine started, input format \(format)")
         } catch {
             lastError = "Could not start audio capture: \(error.localizedDescription)"
             input.removeTap(onBus: 0)

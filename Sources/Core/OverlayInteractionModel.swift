@@ -17,8 +17,9 @@ enum OverlayMode: Equatable {
 
 /// Normalized input events fed to the interaction model by the UI layer.
 enum OverlayInput: Equatable {
-    case promptHotkey       // Option+Space (global)
+    case promptHotkey       // Option+Space (global): toggles the overlay
     case managementHotkey   // Option+Tab (global)
+    case voiceKey           // Cmd+V while the overlay is open: toggles voice
     case escape
     case returnKey
     case tab
@@ -62,8 +63,9 @@ struct OverlayInteractionModel {
         case .hidden:
             switch input {
             case .promptHotkey:
-                mode = .promptEntry(transcribing: true)
-                return [.showPromptPill, .startTranscription]
+                // Text entry is the default; ⌥Space again toggles voice.
+                mode = .promptEntry(transcribing: false)
+                return [.showPromptPill, .beginEditing(seed: nil)]
             case .managementHotkey:
                 mode = .management(confirmingArchive: false)
                 return [.showManagement]
@@ -74,6 +76,12 @@ struct OverlayInteractionModel {
         case .promptEntry(let transcribing):
             switch input {
             case .promptHotkey:
+                // ⌥Space toggles the overlay: pressing it again closes.
+                mode = .hidden
+                return transcribing
+                    ? [.stopTranscription, .hideOverlay]
+                    : [.hideOverlay]
+            case .voiceKey:
                 if transcribing {
                     mode = .promptEntry(transcribing: false)
                     return [.stopTranscription, .beginEditing(seed: nil)]
@@ -85,10 +93,12 @@ struct OverlayInteractionModel {
                 mode = .promptEntry(transcribing: false)
                 return [.stopTranscription, .beginEditing(seed: c)]
             case .returnKey:
-                mode = .hidden
+                // Submission opens the new agent's conversation rather than
+                // closing the overlay, so the user sees it start working.
+                mode = .conversation
                 return transcribing
-                    ? [.stopTranscription, .submitPrompt, .hideOverlay]
-                    : [.submitPrompt, .hideOverlay]
+                    ? [.stopTranscription, .submitPrompt]
+                    : [.submitPrompt]
             case .escape:
                 mode = .hidden
                 return transcribing
@@ -151,8 +161,14 @@ struct OverlayInteractionModel {
                 mode = .hidden
                 return [.hideOverlay]
             case .promptHotkey:
-                mode = .promptEntry(transcribing: true)
-                return [.showPromptPill, .startTranscription]
+                // ⌥Space toggles the overlay closed from anywhere.
+                mode = .hidden
+                return [.hideOverlay]
+            case .tab:
+                // Tab cycles focus back to the prompt field (draft intact —
+                // the pill stays visible while the panel has focus).
+                mode = .promptEntry(transcribing: false)
+                return [.beginEditing(seed: nil)]
             default:
                 return []
             }
@@ -163,6 +179,9 @@ struct OverlayInteractionModel {
                 mode = .management(confirmingArchive: false)
                 return [.closeConversation, .showManagement]
             case .promptHotkey:
+                mode = .hidden
+                return [.hideOverlay]
+            case .voiceKey:
                 return [.toggleComposerTranscription]
             case .managementHotkey:
                 mode = .management(confirmingArchive: false)

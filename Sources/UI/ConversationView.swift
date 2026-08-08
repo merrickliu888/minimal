@@ -137,7 +137,7 @@ struct ConversationView: View {
             HStack(spacing: 12) {
                 KeyHint(symbol: "⏎", label: "send")
                 KeyHint(symbol: "⇧⏎", label: "newline")
-                KeyHint(symbol: "⌥␣", label: controller.composerTranscribing ? "stop voice" : "voice")
+                KeyHint(symbol: "⌘V", label: controller.composerTranscribing ? "stop voice" : "voice")
                 Spacer()
             }
         }

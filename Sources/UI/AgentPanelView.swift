@@ -50,7 +50,7 @@ struct AgentPanelView: View {
             Text("No active agents")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textSecondary)
-            Text("⌥Space to start one by voice")
+            Text("⌥Space to start one")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.textSecondary.opacity(0.7))
         }

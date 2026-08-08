@@ -63,7 +63,6 @@ final class ClaudeCodeProvider: AgentProvider {
     func startRun(
         sessionID: UUID,
         initialPrompt: String?,
-        screenshotPath: String?,
         workingDirectory: String,
         resumeProviderSessionID: String?
     ) throws -> AgentRun {
@@ -80,7 +79,7 @@ final class ClaudeCodeProvider: AgentProvider {
         )
         try run.start()
         if let prompt = initialPrompt {
-            run.send(text: prompt, screenshotPath: screenshotPath)
+            run.send(text: prompt)
         }
         return run
     }
@@ -158,23 +157,7 @@ final class ClaudeCodeRun: AgentRun {
     // MARK: Sending
 
     func send(text: String) {
-        send(text: text, screenshotPath: nil)
-    }
-
-    func send(text: String, screenshotPath: String?) {
-        var imageBase64: String?
-        if let path = screenshotPath, let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
-            imageBase64 = data.base64EncodedString()
-        }
-        let prompt: String
-        if imageBase64 != nil {
-            prompt = text + "\n\n[Attached: screenshot of the user's active display when they made this "
-                + "request — supplemental context that may or may not be relevant.]"
-        } else {
-            // Image unreadable or absent: fall back to referencing the path.
-            prompt = ClaudeCodeLauncher.initialPrompt(userPrompt: text, screenshotPath: screenshotPath)
-        }
-        guard let line = StreamJSON.encodeUserMessage(text: prompt, imageBase64: imageBase64) else { return }
+        guard let line = StreamJSON.encodeUserMessage(text: text) else { return }
         writeLine(line)
         turnInFlight = true
         delegate?.agentRun(self, didChangeState: .running, detail: "Working…")

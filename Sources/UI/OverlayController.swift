@@ -36,6 +36,9 @@ final class OverlayController: ObservableObject {
     private var keyMonitor: Any?
     private var activeScreen: NSScreen?
     private var composerBaseText: String = ""
+    /// Draft text present when pill transcription started; partials append
+    /// to this instead of replacing typed text.
+    private var pillBaseText: String = ""
     private var cancellables: Set<AnyCancellable> = []
 
     init(store: SessionStore, coordinator: AgentCoordinator, transcriber: Transcriber) {
@@ -43,13 +46,16 @@ final class OverlayController: ObservableObject {
         self.coordinator = coordinator
         self.transcriber = transcriber
 
-        // Live-mirror transcription into the conversation composer.
+        // Live-mirror transcription into whichever field is listening.
         transcriber.$partialText
             .receive(on: DispatchQueue.main)
             .sink { [weak self] partial in
-                guard let self, self.composerTranscribing else { return }
-                let joiner = self.composerBaseText.isEmpty || self.composerBaseText.hasSuffix(" ") || partial.isEmpty ? "" : " "
-                self.composerText = self.composerBaseText + joiner + partial
+                guard let self else { return }
+                if self.composerTranscribing {
+                    self.composerText = Self.joined(self.composerBaseText, partial)
+                } else if case .promptEntry(transcribing: true) = self.mode {
+                    self.draftText = Self.joined(self.pillBaseText, partial)
+                }
             }
             .store(in: &cancellables)
     }
@@ -88,10 +94,13 @@ final class OverlayController: ObservableObject {
     private func execute(_ command: OverlayCommand) {
         switch command {
         case .showPromptPill:
-            activeScreen = ScreenshotCapturer.screenUnderMouse()
+            activeScreen = Self.screenUnderMouse()
             draftText = ""
+            pillBaseText = ""
 
         case .startTranscription:
+            // Voice appends to whatever is already typed.
+            pillBaseText = draftText
             transcriber.start()
 
         case .stopTranscription:
@@ -99,17 +108,19 @@ final class OverlayController: ObservableObject {
                 stopComposerTranscription()
             } else {
                 let transcript = transcriber.stop()
-                if draftText.isEmpty { draftText = transcript }
+                draftText = Self.joined(pillBaseText, transcript)
             }
 
         case .beginEditing(let seed):
-            var text = draftText.isEmpty ? transcriber.partialText : draftText
-            if transcriber.isActive { _ = transcriber.stop() }
-            if let seed {
-                if !text.isEmpty && !text.hasSuffix(" ") { text += " " }
-                text.append(seed)
+            if transcriber.isActive {
+                let transcript = transcriber.stop()
+                draftText = Self.joined(pillBaseText, transcript)
             }
-            draftText = text
+            if let seed {
+                if !draftText.isEmpty && !draftText.hasSuffix(" ") { draftText += " " }
+                draftText.append(seed)
+            }
+            pillPanel?.focusFirstTextInput()
 
         case .submitPrompt:
             submitPrompt()
@@ -171,6 +182,11 @@ final class OverlayController: ObservableObject {
         }
     }
 
+    private static func joined(_ base: String, _ addition: String) -> String {
+        if base.isEmpty || addition.isEmpty || base.hasSuffix(" ") { return base + addition }
+        return base + " " + addition
+    }
+
     private func stopComposerTranscription() {
         guard composerTranscribing else {
             if transcriber.isActive { _ = transcriber.stop() }
@@ -178,8 +194,7 @@ final class OverlayController: ObservableObject {
         }
         composerTranscribing = false
         let partial = transcriber.stop()
-        let joiner = composerBaseText.isEmpty || composerBaseText.hasSuffix(" ") || partial.isEmpty ? "" : " "
-        composerText = composerBaseText + joiner + partial
+        composerText = Self.joined(composerBaseText, partial)
         composerBaseText = composerText
     }
 
@@ -191,16 +206,16 @@ final class OverlayController: ObservableObject {
             prompt = transcriber.partialText.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         draftText = ""
-        guard !prompt.isEmpty else { return }
-        let screen = activeScreen
-        // Hide the overlay first so the screenshot shows the user's actual
-        // workspace, not our pill.
-        hideAllPanels()
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 180_000_000)
-            let screenshotPath = await ScreenshotCapturer.captureActiveDisplay(screen: screen)
-            self.coordinator.startAgent(prompt: prompt, screenshotPath: screenshotPath)
+        guard !prompt.isEmpty else {
+            // Nothing to submit: close the overlay instead of opening an
+            // empty conversation.
+            model.forceMode(.hidden)
+            mode = .hidden
+            return
         }
+        openSessionID = coordinator.startAgent(prompt: prompt)
+        composerText = ""
+        composerBaseText = ""
     }
 
     // MARK: - Selection
@@ -226,8 +241,14 @@ final class OverlayController: ObservableObject {
 
     // MARK: - Panels
 
+    /// The screen the user is working on — where the mouse pointer is.
+    static func screenUnderMouse() -> NSScreen? {
+        let mouse = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+    }
+
     private func screenForOverlay() -> NSScreen {
-        activeScreen ?? ScreenshotCapturer.screenUnderMouse() ?? NSScreen.main ?? NSScreen.screens[0]
+        activeScreen ?? Self.screenUnderMouse() ?? NSScreen.main ?? NSScreen.screens[0]
     }
 
     private func syncPanels() {
@@ -244,7 +265,8 @@ final class OverlayController: ObservableObject {
 
         case .management:
             let screen = screenForOverlay()
-            pillPanel?.dismiss()
+            // Keep the pill visible (unfocused) if it was open, so Tab can
+            // cycle focus back to it without losing the draft.
             conversationPanel?.dismiss()
             presentManagementPanel(on: screen, focused: true)
             installKeyMonitorIfNeeded()
@@ -254,6 +276,7 @@ final class OverlayController: ObservableObject {
             pillPanel?.dismiss()
             managementPanel?.dismiss()
             presentConversationPanel(on: screen)
+            conversationPanel?.focusFirstTextInput()
             installKeyMonitorIfNeeded()
         }
     }
@@ -269,6 +292,12 @@ final class OverlayController: ObservableObject {
         let size = NSSize(width: 640, height: 160)
         let panel = pillPanel ?? OverlayPanel(size: size)
         pillPanel = panel
+        if panel.isVisible {
+            // Already showing: the SwiftUI view tracks @Published state, so
+            // rebuilding the hosting view would only destroy field focus.
+            panel.makeKey()
+            return
+        }
         panel.setRootView(
             PromptPillView()
                 .environmentObject(self)
@@ -286,6 +315,10 @@ final class OverlayController: ObservableObject {
         let size = NSSize(width: 340, height: 440)
         let panel = managementPanel ?? OverlayPanel(size: size)
         managementPanel = panel
+        if panel.isVisible {
+            if focused { panel.makeKey() }
+            return
+        }
         panel.setRootView(
             AgentPanelView()
                 .environmentObject(self)
@@ -308,6 +341,10 @@ final class OverlayController: ObservableObject {
         let size = NSSize(width: 760, height: 620)
         let panel = conversationPanel ?? OverlayPanel(size: size)
         conversationPanel = panel
+        if panel.isVisible {
+            panel.makeKey()
+            return
+        }
         panel.setRootView(
             ConversationView()
                 .environmentObject(self)
@@ -363,12 +400,16 @@ final class OverlayController: ObservableObject {
                 feed(.promptHotkey) // stop transcription, begin editing without a seed
                 return true
             default:
+                if event.modifierFlags.contains(.command) {
+                    if event.charactersIgnoringModifiers?.lowercased() == "v" {
+                        feed(.voiceKey)
+                        return true
+                    }
+                    return handleEditingCommand(event)
+                }
                 if transcribing, let c = typedCharacter(event) {
                     feed(.character(c))
                     return true
-                }
-                if event.modifierFlags.contains(.command) {
-                    return handleEditingCommand(event)
                 }
                 return false // editing: let the text field handle it
 
@@ -377,6 +418,7 @@ final class OverlayController: ObservableObject {
         case .management:
             switch event.keyCode {
             case Key.escape: feed(.escape); return true
+            case Key.tab: feed(.tab); return true
             case Key.up: feed(.navUp); return true
             case Key.down: feed(.navDown); return true
             case Key.right, Key.returnKey: feed(.navOpen); return true
@@ -391,6 +433,10 @@ final class OverlayController: ObservableObject {
             if event.keyCode == Key.escape { feed(.escape); return true }
             if event.modifierFlags.contains(.command) {
                 let c = event.charactersIgnoringModifiers?.lowercased()
+                if c == "v" {
+                    feed(.voiceKey)
+                    return true
+                }
                 if c == "y" || c == "n", let sessionID = openSessionID,
                    let request = coordinator.pendingPermissions(for: sessionID).first {
                     coordinator.respondToPermission(sessionID: sessionID, requestID: request.id, allow: c == "y")
@@ -409,11 +455,11 @@ final class OverlayController: ObservableObject {
 
     /// An LSUIElement app has no Edit menu, so the standard edit shortcuts
     /// have no menu item to land on — dispatch them to the field editor.
+    /// (⌘V is the voice toggle in this app, so paste has no shortcut.)
     private func handleEditingCommand(_ event: NSEvent) -> Bool {
         guard event.modifierFlags.contains(.command) else { return false }
         let selector: Selector?
         switch event.charactersIgnoringModifiers?.lowercased() {
-        case "v": selector = #selector(NSText.paste(_:))
         case "c": selector = #selector(NSText.copy(_:))
         case "x": selector = #selector(NSText.cut(_:))
         case "a": selector = #selector(NSText.selectAll(_:))

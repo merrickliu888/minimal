@@ -47,4 +47,30 @@ final class OverlayPanel: NSPanel {
         // The hosting view is rebuilt by setRootView on the next present.
         contentView = NSView()
     }
+
+    /// Force keyboard focus onto the first text input in the hierarchy.
+    /// SwiftUI's FocusState is unreliable in a non-activating borderless
+    /// panel while the app is inactive; going through makeFirstResponder at
+    /// the AppKit level is what actually moves key input to the field.
+    func focusFirstTextInput(afterDelay delay: TimeInterval = 0.06) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, let content = self.contentView else { return }
+            self.makeKey()
+            if let input = Self.findTextInput(in: content) {
+                self.makeFirstResponder(input)
+                // Put the insertion point at the end rather than selecting all.
+                if let editor = input.currentEditor() {
+                    editor.selectedRange = NSRange(location: (editor.string as NSString).length, length: 0)
+                }
+            }
+        }
+    }
+
+    private static func findTextInput(in view: NSView) -> NSTextField? {
+        if let field = view as? NSTextField, field.isEditable { return field }
+        for subview in view.subviews {
+            if let found = findTextInput(in: subview) { return found }
+        }
+        return nil
+    }
 }

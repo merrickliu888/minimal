@@ -56,9 +56,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let view = SettingsView(settingsModel: settingsModel)
                 .environmentObject(permissions)
             let hosting = NSHostingController(rootView: view)
-            let window = NSWindow(contentViewController: hosting)
+            // Don't let SwiftUI size the window via constraints: the content
+            // height changes as checks complete, and the resulting layout
+            // feedback loop trips AppKit's constraint-pass limit (crash).
+            hosting.sizingOptions = []
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 540, height: 640),
+                styleMask: [.titled, .closable, .miniaturizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.contentViewController = hosting
+            window.setContentSize(NSSize(width: 540, height: 640))
             window.title = "Assistant"
-            window.styleMask = [.titled, .closable, .miniaturizable]
             window.isReleasedWhenClosed = false
             window.center()
             settingsWindow = window

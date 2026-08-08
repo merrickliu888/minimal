@@ -32,18 +32,6 @@ struct SettingsView: View {
                         action: { permissions.requestSpeech() },
                         settingsPane: "Privacy_SpeechRecognition"
                     )
-                    permissionRow(
-                        title: "Screen Recording",
-                        detail: "Attaches a screenshot of your display as agent context",
-                        status: permissions.screenRecording,
-                        action: { permissions.requestScreenRecording() },
-                        settingsPane: "Privacy_ScreenCapture",
-                        // CGPreflight can't distinguish "never asked" from
-                        // "denied", and the app only appears in the Settings
-                        // list after it attempts a capture — so always offer
-                        // the request path.
-                        alwaysOfferRequest: true
-                    )
                 }
                 .padding(.vertical, 4)
             }
@@ -110,7 +98,8 @@ struct SettingsView: View {
             }
         }
         .padding(22)
-        .frame(width: 540)
+        .frame(width: 540, alignment: .top)
+        .frame(maxHeight: .infinity, alignment: .top)
         .onAppear {
             permissions.refresh()
             permissions.startPolling()
@@ -125,8 +114,7 @@ struct SettingsView: View {
         detail: String,
         status: PermissionsManager.Status,
         action: @escaping () -> Void,
-        settingsPane: String,
-        alwaysOfferRequest: Bool = false
+        settingsPane: String
     ) -> some View {
         HStack {
             Image(systemName: status == .granted ? "checkmark.circle.fill" : "circle")
@@ -137,7 +125,7 @@ struct SettingsView: View {
             }
             Spacer()
             if status != .granted {
-                if status == .denied && !alwaysOfferRequest {
+                if status == .denied {
                     Button("Open Settings") { permissions.openSettingsPane(settingsPane) }
                         .controlSize(.small)
                 } else {

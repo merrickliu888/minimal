@@ -52,7 +52,9 @@ enum ClaudeCodeLauncher {
             // Route tool approvals over stdin/stdout as can_use_tool control
             // requests so the overlay can surface them as Needs Input.
             "--permission-prompt-tool", "stdio",
-            "--permission-mode", "default",
+            // auto: a model classifier reviews permission prompts and only
+            // escalates the ones it won't auto-approve to the overlay.
+            "--permission-mode", "auto",
             // Without this, questions arrive as a structured tool call the
             // overlay would have to render as a form; disallowing it makes
             // Claude ask in plain text and end its turn, which the panel
@@ -65,19 +67,6 @@ enum ClaudeCodeLauncher {
             args += ["--session-id", sessionID.uuidString.lowercased()]
         }
         return args
-    }
-
-    /// The initial user message, combining the spoken/typed prompt with an
-    /// optional screenshot reference the agent can open with its Read tool.
-    static func initialPrompt(userPrompt: String, screenshotPath: String?) -> String {
-        guard let path = screenshotPath else { return userPrompt }
-        return """
-        \(userPrompt)
-
-        [Supplemental context: a screenshot of the user's active display at the \
-        moment they made this request is saved at \(path) — open it only if it \
-        seems relevant to the request.]
-        """
     }
 
     /// Short panel title derived from the first prompt.

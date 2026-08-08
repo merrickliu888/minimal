@@ -12,6 +12,12 @@ struct PromptPillView: View {
         return false
     }
 
+    /// False while the pill is visible but the management panel has focus.
+    private var isFocused: Bool {
+        if case .promptEntry = controller.mode { return true }
+        return false
+    }
+
     var body: some View {
         VStack {
             Spacer()
@@ -43,11 +49,18 @@ struct PromptPillView: View {
                 .frame(width: 88, height: 24)
 
             Group {
-                if transcriber.partialText.isEmpty {
+                if let error = transcriber.lastError {
+                    Text(error)
+                        .foregroundStyle(Theme.failure)
+                        .lineLimit(3)
+                } else if !transcriber.isActive {
+                    Text("Starting microphone…")
+                        .foregroundStyle(Theme.textSecondary)
+                } else if controller.draftText.isEmpty {
                     Text("Listening… speak, or start typing")
                         .foregroundStyle(Theme.textSecondary)
                 } else {
-                    Text(transcriber.partialText)
+                    Text(controller.draftText)
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(2)
                 }
@@ -75,9 +88,13 @@ struct PromptPillView: View {
                 .onAppear { fieldFocused = true }
 
             HStack(spacing: 14) {
-                KeyHint(symbol: "⏎", label: "start agent")
-                KeyHint(symbol: "⌥␣", label: "voice")
-                KeyHint(symbol: "esc", label: "dismiss")
+                if isFocused {
+                    KeyHint(symbol: "⏎", label: "start agent")
+                    KeyHint(symbol: "⌘V", label: "voice")
+                    KeyHint(symbol: "esc", label: "dismiss")
+                } else {
+                    KeyHint(symbol: "⇥", label: "focus")
+                }
                 Spacer()
             }
         }

@@ -27,8 +27,10 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
 
     // MARK: - Session lifecycle
 
-    /// Start a brand-new agent from the prompt pill.
-    func startAgent(prompt: String, screenshotPath: String?) {
+    /// Start a brand-new agent from the prompt pill. Returns the session id
+    /// so the overlay can open its conversation immediately.
+    @discardableResult
+    func startAgent(prompt: String) -> UUID {
         let meta = AgentSessionMeta(
             providerID: provider.id,
             providerSessionID: nil,
@@ -43,7 +45,6 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
             let run = try provider.startRun(
                 sessionID: meta.id,
                 initialPrompt: prompt,
-                screenshotPath: screenshotPath,
                 workingDirectory: meta.workingDirectory,
                 resumeProviderSessionID: nil
             )
@@ -53,6 +54,7 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
             store.setState(id: meta.id, .failed, detail: error.localizedDescription)
             store.append(message: ChatMessage(role: .error, text: error.localizedDescription), to: meta.id)
         }
+        return meta.id
     }
 
     /// Send a follow-up message, resuming the provider session if the
@@ -69,7 +71,6 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
             let run = try provider.startRun(
                 sessionID: sessionID,
                 initialPrompt: text,
-                screenshotPath: nil,
                 workingDirectory: meta.workingDirectory,
                 resumeProviderSessionID: meta.providerSessionID
             )

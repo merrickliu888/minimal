@@ -109,25 +109,13 @@ enum StreamJSON {
 
     // MARK: - Encoding (user messages -> CLI stdin)
 
-    /// One line of `--input-format stream-json` carrying a user message,
-    /// optionally with an attached image (base64).
-    static func encodeUserMessage(text: String, imageBase64: String? = nil, imageMediaType: String = "image/jpeg") -> String? {
-        var content: [[String: Any]] = [["type": "text", "text": text]]
-        if let imageBase64 {
-            content.append([
-                "type": "image",
-                "source": [
-                    "type": "base64",
-                    "media_type": imageMediaType,
-                    "data": imageBase64,
-                ],
-            ])
-        }
+    /// One line of `--input-format stream-json` carrying a user text message.
+    static func encodeUserMessage(text: String) -> String? {
         let payload: [String: Any] = [
             "type": "user",
             "message": [
                 "role": "user",
-                "content": content,
+                "content": [["type": "text", "text": text]],
             ],
         ]
         return serializeLine(payload)

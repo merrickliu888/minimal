@@ -10,12 +10,13 @@ agents (Codex, …) can be added later.
 
 ## What it does
 
-- **⌥Space** from any app: a pill appears at the bottom of your screen and
-  immediately starts transcribing your voice (Apple Speech framework). Speak a
-  task, or just start typing — the first key you press stops transcription and
-  becomes the next character of an editable prompt. **Return** submits: the
-  overlay captures a screenshot of your active display as supplemental
-  context and starts a new Claude Code session in the background.
+- **⌥Space** from any app toggles the overlay: a prompt field appears at the
+  bottom of your screen, ready to type into (⌥Space again closes it). Press
+  **⌘V** to toggle voice transcription (Apple Speech framework) — spoken text
+  appends to whatever you've typed, and typing any key while listening stops
+  transcription and keeps going from the keyboard. **Return** submits: the
+  overlay starts a new Claude Code session and opens its conversation so you
+  can watch it work.
 - **⌥Tab** from any app: a compact panel appears top-left showing your agents
   in two sections — **Needs Input** (prominent, blue dot) and **Running**
   (spinner) — plus failed ones. Navigate entirely by keyboard.
@@ -38,18 +39,21 @@ Global:
 
 | Shortcut | Action |
 |---|---|
-| ⌥Space | Open overlay in prompt-entry mode, start transcribing |
+| ⌥Space | Toggle the overlay (opens in prompt-entry mode, text input focused; closes from any mode) |
 | ⌥Tab | Open overlay in agent-management mode |
 
 Prompt entry (bottom pill):
 
 | Key | Action |
 |---|---|
-| ⌥Space | Stop transcription (edit), or restart it |
-| any typing key | Stop transcription; key becomes the next character |
-| ⏎ | Submit prompt, start agent (with screenshot) |
+| ⌘V | Toggle voice transcription (appends to typed text) |
+| any typing key | While listening: stop transcription, keep typing |
+| ⏎ | Submit prompt, start agent, open its conversation |
 | ⇥ | Move focus to the agent panel |
 | esc | Close the overlay |
+
+Note: ⌘V is the voice toggle, so paste has no keyboard shortcut inside the
+overlay (⌘C/⌘X/⌘A still work).
 
 Agent management (top-left panel):
 
@@ -59,6 +63,7 @@ Agent management (top-left panel):
 | ↓ / S | Select next agent |
 | → / D / ⏎ | Open selected agent |
 | ← / A | Begin archive confirmation (**A** confirms, **esc**/**D** cancels) |
+| ⇥ | Cycle focus back to the prompt field (draft preserved) |
 | esc | Close the overlay |
 
 Open agent (conversation):
@@ -68,9 +73,10 @@ Open agent (conversation):
 | typing | Writes into the composer |
 | ⏎ | Send message (resumes the session if needed) |
 | ⇧⏎ | Newline |
-| ⌥Space | Toggle voice input into the composer |
+| ⌘V | Toggle voice input into the composer |
 | ⌘Y / ⌘N | Allow / deny a pending tool approval |
 | esc | Back to the management panel |
+| ⌥Space | Close the overlay |
 
 All single-letter shortcuts are interpreted against the current interaction
 mode (an explicit state machine, `OverlayInteractionModel`), never globally.
@@ -97,9 +103,9 @@ identity.
 
 The settings window opens automatically and gates the overlay until:
 
-1. **Microphone**, **Speech Recognition**, and **Screen Recording** are
-   granted (each has a Grant / Open Settings button and is re-checked every
-   2s — macOS provides no grant notification).
+1. **Microphone** and **Speech Recognition** are granted (each has a Grant /
+   Open Settings button and is re-checked every 2s — macOS provides no grant
+   notification).
 2. **Claude Code** is detected and launches (`claude --version`). A custom
    executable path and the agents' working directory are configurable here.
 
@@ -122,7 +128,6 @@ Sources/
     SessionStore.swift         persistence: sessions.json + per-session transcripts
     AgentCoordinator.swift     live runs <-> store bridge, start/resume/archive
     Transcriber.swift          SFSpeechRecognizer + AVAudioEngine, level metering
-    ScreenshotCapturer.swift   ScreenCaptureKit capture of the active display
     PermissionsManager.swift   TCC status, requests, polling
   UI/
     OverlayPanel.swift         non-activating key-capable NSPanel
@@ -145,10 +150,9 @@ stream-json` child process (stdin/stdout JSON lines):
 - `assistant` text / `tool_use` blocks → transcript rows
 - `result` → turn over → **Needs Input** (or **Failed** on `is_error`)
 - `control_request` (`can_use_tool`, enabled via `--permission-prompt-tool
-  stdio`) → pending approval → **Needs Input**; answered on stdin with
-  allow/deny
-- The screenshot is sent as a base64 image content block in the first user
-  message (downscaled to ≤1568px JPEG), marked as supplemental context.
+  stdio`; sessions run in `auto` permission mode, so a classifier reviews
+  most prompts and only escalations reach the overlay) → pending approval →
+  **Needs Input**; answered on stdin with allow/deny
 - `AskUserQuestion` is disallowed so questions arrive as plain text and end
   the turn — which the panel already surfaces as Needs Input.
 - Parent-session env vars (`CLAUDECODE`, …) are stripped so the app works
@@ -162,5 +166,4 @@ structured stream, and the UI is decoupled from the provider behind
 
 - ⌥Tab is not yet remappable (no conflict observed with stock macOS).
 - Tool approvals allow/deny the specific request only; no "always allow" rules.
-- Screenshot temp files in `$TMPDIR` are not garbage-collected.
 - One provider (Claude Code); the abstraction is ready for more.
