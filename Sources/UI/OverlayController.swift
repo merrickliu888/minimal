@@ -718,9 +718,15 @@ final class OverlayController: ObservableObject {
             }
 
         case .conversation:
-            // Ctrl+` toggles the terminal pane (works from either focus).
+            // Pane toggles work regardless of which pane has focus — the
+            // shell never sees ⌃` or ⌘⇧D.
             if event.keyCode == Key.backtick && event.modifierFlags.contains(.control) {
                 toggleTerminal()
+                return true
+            }
+            if event.modifierFlags.contains(.command) && event.modifierFlags.contains(.shift),
+               event.charactersIgnoringModifiers?.lowercased() == "d" {
+                toggleDiff()
                 return true
             }
             // A focused terminal gets raw keys — Escape/Tab/Return belong to
@@ -743,10 +749,6 @@ final class OverlayController: ObservableObject {
                 }
                 if c == "m" {
                     cycleSessionModel()
-                    return true
-                }
-                if c == "d" && event.modifierFlags.contains(.shift) {
-                    toggleDiff()
                     return true
                 }
                 return handleEditingCommand(event)
