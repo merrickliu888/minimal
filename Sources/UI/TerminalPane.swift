@@ -53,7 +53,7 @@ final class TerminalCache {
 
     /// True when the given responder is (inside) a terminal view — those get
     /// raw keys, e.g. Escape must reach vim rather than close the overlay.
-    nonisolated static func isTerminalResponder(_ responder: NSResponder?) -> Bool {
+    static func isTerminalResponder(_ responder: NSResponder?) -> Bool {
         var current = responder as? NSView
         while let view = current {
             if view is TerminalView { return true }
