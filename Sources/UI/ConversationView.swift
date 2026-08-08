@@ -28,7 +28,7 @@ struct ConversationView: View {
             if controller.terminalVisible, let terminal = controller.activeTerminal {
                 TerminalPane(terminalView: terminal)
                     .padding(12)
-                    .background(Color.black)
+                    .background(Color(nsColor: TerminalCache.resolvedBackground()))
                     .frame(width: 424)
                     .frame(maxHeight: .infinity)
                     .overlayCard(cornerRadius: 14)
@@ -50,13 +50,16 @@ struct ConversationView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
-                HStack(spacing: 3) {
-                    Image(systemName: "cpu")
-                        .font(.system(size: 9))
-                    Text(meta.model ?? "default")
-                        .font(.system(size: 10, design: .monospaced))
+                if let branch = controller.sessionBranch {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.system(size: 9))
+                        Text(branch)
+                            .font(.system(size: 10, design: .monospaced))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(Theme.textSecondary)
                 }
-                .foregroundStyle(meta.model == nil ? Theme.textSecondary : Theme.accent)
             }
             Spacer()
             KeyHint(symbol: "esc", label: "back")
@@ -162,6 +165,15 @@ struct ConversationView: View {
                 KeyHint(symbol: "⌘M", label: "model")
                 KeyHint(symbol: "⌃`", label: controller.terminalVisible ? "hide terminal" : "terminal")
                 Spacer()
+                if let meta {
+                    HStack(spacing: 4) {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 9))
+                        Text(meta.model ?? "default")
+                            .font(.system(size: 10, design: .monospaced))
+                    }
+                    .foregroundStyle(meta.model == nil ? Theme.textSecondary : Theme.accent)
+                }
             }
         }
         .padding(.horizontal, 16)

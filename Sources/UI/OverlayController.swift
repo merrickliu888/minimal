@@ -33,6 +33,9 @@ final class OverlayController: ObservableObject {
     @Published var openSessionID: UUID?
     @Published var composerText: String = ""
     @Published private(set) var composerTranscribing = false
+    /// Git branch of the open session's working directory (nil = not a repo).
+    @Published private(set) var sessionBranch: String?
+    private var branchTimer: Timer?
     // Terminal pane (Ctrl+`).
     @Published private(set) var terminalVisible = false
     @Published private(set) var activeTerminal: LocalProcessTerminalView?
@@ -432,6 +435,46 @@ final class OverlayController: ObservableObject {
             presentConversationPanel(on: screen)
             conversationPanel?.focusFirstTextInput()
             installKeyMonitorIfNeeded()
+        }
+
+        if case .conversation = mode {
+            startBranchPolling()
+        } else {
+            stopBranchPolling()
+        }
+    }
+
+    // MARK: - Git branch display
+
+    /// The branch can change under a working agent, so poll it (cheaply)
+    /// while the conversation is visible.
+    private func startBranchPolling() {
+        refreshBranch()
+        guard branchTimer == nil else { return }
+        branchTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
+            Task { @MainActor in self.refreshBranch() }
+        }
+    }
+
+    private func stopBranchPolling() {
+        branchTimer?.invalidate()
+        branchTimer = nil
+        sessionBranch = nil
+    }
+
+    private func refreshBranch() {
+        guard let sessionID = openSessionID,
+              let directory = store.session(id: sessionID)?.workingDirectory
+        else {
+            sessionBranch = nil
+            return
+        }
+        Task.detached(priority: .utility) {
+            let branch = GitInfo.currentBranch(at: directory)
+            await MainActor.run { [weak self] in
+                guard let self, self.openSessionID == sessionID else { return }
+                self.sessionBranch = branch
+            }
         }
     }
 

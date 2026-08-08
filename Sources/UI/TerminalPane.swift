@@ -15,7 +15,20 @@ final class TerminalCache {
         if let existing = views[sessionID] { return existing }
         let view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 424, height: 560))
         view.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        view.appearance = NSAppearance(named: .darkAqua)
+        // SwiftTerm pushes this color into the terminal's own color model,
+        // dropping alpha (so .clear renders as black) — transparency is not
+        // an option. Use a solid appearance-resolved gray; the SwiftUI
+        // padding around the pane uses the same color so they read as one
+        // surface.
+        view.nativeBackgroundColor = Self.resolvedBackground()
+        // SwiftTerm syncs its backing layer's color only at setup, before we
+        // changed the background — left alone it stays black and shows
+        // through whenever drawing lags layout (first present, resizes).
+        view.layer?.backgroundColor = Self.resolvedBackground().cgColor
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            view.nativeForegroundColor = NSColor.textColor
+                .usingColorSpace(.sRGB) ?? NSColor.white
+        }
         // Hide the embedded scroller outright — the system "Show scroll bars:
         // Always" preference forces a visible track regardless of style, and
         // wheel/trackpad scrollback works through the terminal view itself.
@@ -39,6 +52,18 @@ final class TerminalCache {
 
     func terminate(sessionID: UUID) {
         views.removeValue(forKey: sessionID)?.process.terminate()
+    }
+
+    /// The shared surface color for the terminal card: the system's
+    /// recessed-surface gray, lightened slightly, resolved for the current
+    /// appearance (SwiftTerm needs a concrete RGB color).
+    static func resolvedBackground() -> NSColor {
+        var color = NSColor(white: 0.22, alpha: 1)
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            let base = NSColor.underPageBackgroundColor.usingColorSpace(.sRGB) ?? color
+            color = base.blended(withFraction: 0.10, of: .white)?.usingColorSpace(.sRGB) ?? base
+        }
+        return color
     }
 
     static func hideScroller(in view: NSView) {
@@ -68,7 +93,9 @@ struct TerminalPane: NSViewRepresentable {
 
     func makeNSView(context: Context) -> LocalProcessTerminalView { terminalView }
     func updateNSView(_ view: LocalProcessTerminalView, context: Context) {
-        // Re-hide in case the view rebuilt or re-showed it on layout.
+        // Re-assert on every update: layout passes can re-run SwiftTerm's
+        // setup, which re-shows the scroller.
         TerminalCache.hideScroller(in: view)
+        view.layer?.backgroundColor = TerminalCache.resolvedBackground().cgColor
     }
 }
