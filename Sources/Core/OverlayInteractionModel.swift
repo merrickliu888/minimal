@@ -175,7 +175,7 @@ struct OverlayInteractionModel {
 
         case .conversation:
             switch input {
-            case .escape:
+            case .escape, .tab:
                 mode = .management(confirmingArchive: false)
                 return [.closeConversation, .showManagement]
             case .promptHotkey:

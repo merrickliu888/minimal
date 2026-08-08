@@ -77,7 +77,7 @@ Open agent (conversation):
 | ⇧⏎ | Newline |
 | ⌘V | Toggle voice input into the composer |
 | ⌘Y / ⌘N | Allow / deny a pending tool approval |
-| esc | Back to the management panel |
+| esc / ⇥ | Back to the management panel |
 | ⌥Space | Close the overlay |
 
 All single-letter shortcuts are interpreted against the current interaction

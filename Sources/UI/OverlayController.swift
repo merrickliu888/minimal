@@ -539,6 +539,7 @@ final class OverlayController: ObservableObject {
 
         case .conversation:
             if event.keyCode == Key.escape { feed(.escape); return true }
+            if event.keyCode == Key.tab { feed(.tab); return true }
             if event.modifierFlags.contains(.command) {
                 let c = event.charactersIgnoringModifiers?.lowercased()
                 if c == "v" {

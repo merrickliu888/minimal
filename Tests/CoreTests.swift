@@ -214,6 +214,11 @@ func testConversationMode() {
     expectEqual(m.handle(.voiceKey), [.toggleComposerTranscription], "cmd+v toggles composer voice")
     expectEqual(m.mode, .conversation, "still in conversation")
 
+    // Tab exits the conversation back to the management overlay
+    expectEqual(m.handle(.tab), [.closeConversation, .showManagement], "tab exits conversation")
+    expectEqual(m.mode, .management(confirmingArchive: false), "management after tab")
+    _ = m.handle(.character("d")) // back into conversation for remaining checks
+
     // Typing keys are not interpreted as commands in conversation mode
     expectEqual(m.handle(.character("a")), [], "letters not interpreted in conversation")
 }
