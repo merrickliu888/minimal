@@ -87,31 +87,21 @@ struct ConversationView: View {
     // MARK: Transcript
 
     private var transcript: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
-                    if let sessionID {
-                        ForEach(store.transcript(for: sessionID)) { message in
-                            MessageRow(message: message)
-                                .id(message.id)
-                        }
-                    }
-                }
-                .padding(16)
-            }
-            .onChange(of: sessionID.map { store.transcript(for: $0).count } ?? 0) {
-                if let last = sessionID.flatMap({ store.transcript(for: $0).last }) {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 10) {
+                if let sessionID {
+                    ForEach(store.transcript(for: sessionID)) { message in
+                        MessageRow(message: message)
+                            .id(message.id)
                     }
                 }
             }
-            .onAppear {
-                if let last = sessionID.flatMap({ store.transcript(for: $0).last }) {
-                    proxy.scrollTo(last.id, anchor: .bottom)
-                }
-            }
+            .padding(16)
         }
+        // Sticky bottom: stays pinned as streamed content grows (even when
+        // markdown renders asynchronously and changes height), and releases
+        // while the user scrolls up to read.
+        .defaultScrollAnchor(.bottom)
     }
 
     // MARK: Permissions
@@ -166,7 +156,7 @@ struct ConversationView: View {
             HStack(spacing: 12) {
                 KeyHint(symbol: "⏎", label: "send")
                 KeyHint(symbol: "⇧⏎", label: "newline")
-                KeyHint(symbol: "⌘V", label: controller.composerTranscribing ? "stop voice" : "voice")
+                KeyHint(symbol: "⌘D", label: controller.composerTranscribing ? "stop voice" : "voice")
                 KeyHint(symbol: "⌘M", label: "model")
                 KeyHint(symbol: "⌃`", label: controller.terminalVisible ? "hide terminal" : "terminal")
                 KeyHint(symbol: "⌘⇧D", label: controller.diffVisible ? "hide diff" : "diff")

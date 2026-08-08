@@ -682,7 +682,7 @@ final class OverlayController: ObservableObject {
             default:
                 if event.modifierFlags.contains(.command) {
                     switch event.charactersIgnoringModifiers?.lowercased() {
-                    case "v":
+                    case "d" where !event.modifierFlags.contains(.shift):
                         feed(.voiceKey)
                         return true
                     case "p":
@@ -738,7 +738,7 @@ final class OverlayController: ObservableObject {
             if event.keyCode == Key.tab { feed(.tab); return true }
             if event.modifierFlags.contains(.command) {
                 let c = event.charactersIgnoringModifiers?.lowercased()
-                if c == "v" {
+                if c == "d" && !event.modifierFlags.contains(.shift) {
                     feed(.voiceKey)
                     return true
                 }
@@ -770,11 +770,11 @@ final class OverlayController: ObservableObject {
 
     /// An LSUIElement app has no Edit menu, so the standard edit shortcuts
     /// have no menu item to land on — dispatch them to the field editor.
-    /// (⌘V is the voice toggle in this app, so paste has no shortcut.)
     private func handleEditingCommand(_ event: NSEvent) -> Bool {
         guard event.modifierFlags.contains(.command) else { return false }
         let selector: Selector?
         switch event.charactersIgnoringModifiers?.lowercased() {
+        case "v": selector = #selector(NSText.paste(_:))
         case "c": selector = #selector(NSText.copy(_:))
         case "x": selector = #selector(NSText.cut(_:))
         case "a": selector = #selector(NSText.selectAll(_:))

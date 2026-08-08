@@ -92,7 +92,7 @@ struct PromptPillView: View {
             HStack(spacing: 14) {
                 if isFocused {
                     KeyHint(symbol: "⏎", label: "start agent")
-                    KeyHint(symbol: "⌘V", label: "voice")
+                    KeyHint(symbol: "⌘D", label: "voice")
                     KeyHint(symbol: "⌘P", label: "directory")
                     KeyHint(symbol: "⌘M", label: "model")
                 } else {

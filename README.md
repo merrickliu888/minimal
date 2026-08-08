@@ -12,7 +12,7 @@ agents (Codex, …) can be added later.
 
 - **⌥Space** from any app toggles the overlay: a prompt field appears at the
   bottom of your screen, ready to type into (⌥Space again closes it). Press
-  **⌘V** to toggle voice transcription (Apple Speech framework) — spoken text
+  **⌘D** to toggle voice transcription (Apple Speech framework) — spoken text
   appends to whatever you've typed, and typing any key while listening stops
   transcription and keeps going from the keyboard. **Return** submits: the
   overlay starts a new Claude Code session and opens its conversation so you
@@ -46,16 +46,13 @@ Prompt entry (bottom pill):
 
 | Key | Action |
 |---|---|
-| ⌘V | Toggle voice transcription (appends to typed text) |
+| ⌘D | Toggle voice transcription (appends to typed text) |
 | ⌘P | Choose the directory the agent works in (shown bottom-right of the pill; ⌘⇧G in the picker accepts a typed path) |
 | ⌘M | Cycle the agent's model (default → fable → opus → sonnet → haiku) |
 | any typing key | While listening: stop transcription, keep typing |
 | ⏎ | Submit prompt, start agent, open its conversation |
 | ⇥ | Move focus to the agent panel |
 | esc | Close the overlay |
-
-Note: ⌘V is the voice toggle, so paste has no keyboard shortcut inside the
-overlay (⌘C/⌘X/⌘A still work).
 
 Agent management (top-left panel):
 
@@ -75,7 +72,7 @@ Open agent (conversation):
 | typing | Writes into the composer |
 | ⏎ | Send message (resumes the session if needed) |
 | ⇧⏎ | Newline |
-| ⌘V | Toggle voice input into the composer |
+| ⌘D | Toggle voice input into the composer |
 | ⌘Y / ⌘N | Allow / deny a pending tool approval |
 | ⌘M | Switch the session's model live (cycles fable → opus → sonnet → haiku; shown in the header) |
 | ⌃` | Toggle a shell terminal pane beside the conversation (opens in the agent's working directory; keeps shell state per session) |
