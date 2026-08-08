@@ -91,7 +91,6 @@ struct PromptPillView: View {
                 if isFocused {
                     KeyHint(symbol: "⏎", label: "start agent")
                     KeyHint(symbol: "⌘V", label: "voice")
-                    KeyHint(symbol: "esc", label: "dismiss")
                 } else {
                     KeyHint(symbol: "⇥", label: "focus")
                 }
