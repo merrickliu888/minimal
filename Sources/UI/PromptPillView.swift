@@ -85,7 +85,9 @@ struct PromptPillView: View {
                 .font(.system(size: 14))
                 .lineLimit(1...5)
                 .focused($fieldFocused)
-                .onAppear { fieldFocused = true }
+                // Don't grab the caret when the pill is showing alongside a
+                // focused management panel; Tab routes focus back explicitly.
+                .onAppear { fieldFocused = isFocused }
 
             HStack(spacing: 14) {
                 if isFocused {

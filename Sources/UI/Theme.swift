@@ -17,17 +17,37 @@ enum Theme {
 /// NSVisualEffectView-backed background for overlay surfaces.
 struct VibrantBackground: NSViewRepresentable {
     var material: NSVisualEffectView.Material = .hudWindow
+    /// Rounds the blur region itself. SwiftUI clipShape can't do this: the
+    /// behind-window blur is composited by the window server, which ignores
+    /// SwiftUI clipping — square blur corners poke out unless the effect
+    /// view is masked directly.
+    var cornerRadius: CGFloat = 0
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = material
         view.state = .active
         view.blendingMode = .behindWindow
+        view.maskImage = Self.roundedMask(radius: cornerRadius)
         return view
     }
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {
         view.material = material
+        view.maskImage = Self.roundedMask(radius: cornerRadius)
+    }
+
+    private static func roundedMask(radius: CGFloat) -> NSImage? {
+        guard radius > 0 else { return nil }
+        let edge = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
     }
 }
 
@@ -35,7 +55,7 @@ extension View {
     /// Standard overlay card chrome: blur, hairline stroke, rounded corners,
     /// soft shadow.
     func overlayCard(cornerRadius: CGFloat = Theme.cornerRadius) -> some View {
-        background(VibrantBackground())
+        background(VibrantBackground(cornerRadius: cornerRadius))
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)

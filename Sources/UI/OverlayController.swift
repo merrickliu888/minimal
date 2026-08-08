@@ -119,8 +119,8 @@ final class OverlayController: ObservableObject {
         switch command {
         case .showPromptPill:
             activeScreen = Self.screenUnderMouse()
-            draftText = ""
-            pillBaseText = ""
+            // The draft intentionally survives overlay toggles; it's only
+            // cleared when a prompt is submitted.
 
         case .startTranscription:
             // Voice appends to whatever is already typed.
@@ -344,9 +344,12 @@ final class OverlayController: ObservableObject {
 
         case .management:
             let screen = screenForOverlay()
-            // Keep the pill visible (unfocused) if it was open, so Tab can
-            // cycle focus back to it without losing the draft.
+            // The pill and the panel are one overlay: the pill stays visible
+            // (unfocused) alongside the panel so Tab can cycle focus to it and
+            // the draft is always in view. Present it first so the management
+            // panel is the one that ends up key.
             conversationPanel?.dismiss()
+            presentPillPanel(on: screen, focused: false)
             presentManagementPanel(on: screen, focused: true)
             installKeyMonitorIfNeeded()
 
@@ -367,14 +370,14 @@ final class OverlayController: ObservableObject {
         removeKeyMonitor()
     }
 
-    private func presentPillPanel(on screen: NSScreen) {
+    private func presentPillPanel(on screen: NSScreen, focused: Bool = true) {
         let size = NSSize(width: 640, height: 160)
         let panel = pillPanel ?? OverlayPanel(size: size)
         pillPanel = panel
         if panel.isVisible {
             // Already showing: the SwiftUI view tracks @Published state, so
             // rebuilding the hosting view would only destroy field focus.
-            panel.makeKey()
+            if focused { panel.makeKey() }
             return
         }
         panel.setRootView(
@@ -387,7 +390,13 @@ final class OverlayController: ObservableObject {
             y: screen.visibleFrame.minY + 48,
             width: size.width, height: size.height
         )
-        panel.present(on: screen, frame: frame)
+        if focused {
+            panel.present(on: screen, frame: frame)
+        } else {
+            panel.setFrame(frame, display: true)
+            panel.alphaValue = 1
+            panel.orderFrontRegardless()
+        }
     }
 
     private func presentManagementPanel(on screen: NSScreen, focused: Bool) {
