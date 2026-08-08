@@ -23,6 +23,9 @@ struct ConversationView: View {
         }
         .frame(width: 760, height: 620)
         .overlayCard(cornerRadius: 14)
+        // Room for the card's shadow to fall off inside the panel window —
+        // without it the shadow clips at the window edge as a hard gray line.
+        .padding(24)
     }
 
     // MARK: Header

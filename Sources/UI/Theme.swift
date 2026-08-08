@@ -52,16 +52,19 @@ struct VibrantBackground: NSViewRepresentable {
 }
 
 extension View {
-    /// Standard overlay card chrome: blur, hairline stroke, rounded corners,
-    /// soft shadow.
+    /// Standard overlay card chrome: blur, hairline stroke, rounded corners.
+    /// Deliberately no drop shadow — it clips at panel-window bounds and
+    /// reads as a gray slab with hard edges.
     func overlayCard(cornerRadius: CGFloat = Theme.cornerRadius) -> some View {
-        background(VibrantBackground(cornerRadius: cornerRadius))
+        // Solid tint over the blur so content stays readable against busy
+        // backgrounds; raise/lower the opacity to taste.
+        background(Color(nsColor: .windowBackgroundColor).opacity(0.45))
+            .background(VibrantBackground(cornerRadius: cornerRadius))
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(Theme.surfaceStroke, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
     }
 }
 

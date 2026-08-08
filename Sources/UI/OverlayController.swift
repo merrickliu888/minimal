@@ -371,7 +371,8 @@ final class OverlayController: ObservableObject {
     }
 
     private func presentPillPanel(on screen: NSScreen, focused: Bool = true) {
-        let size = NSSize(width: 640, height: 160)
+        // Tall enough for a 5-line draft plus shadow falloff above the card.
+        let size = NSSize(width: 640, height: 280)
         let panel = pillPanel ?? OverlayPanel(size: size)
         pillPanel = panel
         if panel.isVisible {
@@ -400,7 +401,8 @@ final class OverlayController: ObservableObject {
     }
 
     private func presentManagementPanel(on screen: NSScreen, focused: Bool) {
-        let size = NSSize(width: 340, height: 440)
+        // Card is 340 wide + 20 shadow margin on each side.
+        let size = NSSize(width: 380, height: 500)
         let panel = managementPanel ?? OverlayPanel(size: size)
         managementPanel = panel
         if panel.isVisible {
@@ -413,8 +415,8 @@ final class OverlayController: ObservableObject {
                 .environmentObject(store)
         )
         let frame = NSRect(
-            x: screen.visibleFrame.minX + 20,
-            y: screen.visibleFrame.maxY - size.height - 20,
+            x: screen.visibleFrame.minX + 4,
+            y: screen.visibleFrame.maxY - size.height - 4,
             width: size.width, height: size.height
         )
         if focused {
@@ -426,7 +428,8 @@ final class OverlayController: ObservableObject {
     }
 
     private func presentConversationPanel(on screen: NSScreen) {
-        let size = NSSize(width: 760, height: 620)
+        // Card 760x620 + 24 shadow margin all around.
+        let size = NSSize(width: 808, height: 668)
         let panel = conversationPanel ?? OverlayPanel(size: size)
         conversationPanel = panel
         if panel.isVisible {
@@ -488,6 +491,9 @@ final class OverlayController: ObservableObject {
         case .promptEntry(let transcribing):
             switch event.keyCode {
             case Key.escape: feed(.escape); return true
+            case Key.returnKey where event.modifierFlags.contains(.shift) && !transcribing:
+                return NSApp.sendAction(
+                    #selector(NSTextView.insertNewlineIgnoringFieldEditor(_:)), to: nil, from: self)
             case Key.returnKey: feed(.returnKey); return true
             case Key.tab: feed(.tab); return true
             case Key.delete where transcribing:
@@ -546,7 +552,13 @@ final class OverlayController: ObservableObject {
                 }
                 return handleEditingCommand(event)
             }
-            if event.keyCode == Key.returnKey && !event.modifierFlags.contains(.shift) {
+            if event.keyCode == Key.returnKey {
+                if event.modifierFlags.contains(.shift) {
+                    // The NSTextField field editor has no Shift+Return
+                    // binding; invoke the literal-newline action directly.
+                    return NSApp.sendAction(
+                        #selector(NSTextView.insertNewlineIgnoringFieldEditor(_:)), to: nil, from: self)
+                }
                 sendComposerMessage()
                 return true
             }

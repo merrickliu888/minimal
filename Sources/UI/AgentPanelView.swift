@@ -25,7 +25,8 @@ struct AgentPanelView: View {
         }
         .frame(width: 340)
         .overlayCard()
-        .padding(10)
+        // Shadow falloff room; keeps the card's corners inside the window.
+        .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 

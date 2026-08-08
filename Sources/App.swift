@@ -6,7 +6,10 @@ struct AssistantApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarView()
+            // Pass the delegate directly: NSApp.delegate is SwiftUI's own
+            // proxy under NSApplicationDelegateAdaptor, so casting it to
+            // AppDelegate fails silently.
+            MenuBarView(appDelegate: appDelegate)
                 .environmentObject(appDelegate.store)
                 .environmentObject(appDelegate.permissions)
         } label: {
@@ -16,6 +19,7 @@ struct AssistantApp: App {
 }
 
 struct MenuBarView: View {
+    let appDelegate: AppDelegate
     @EnvironmentObject var store: SessionStore
     @EnvironmentObject var permissions: PermissionsManager
 
@@ -27,14 +31,14 @@ struct MenuBarView: View {
             Text(statusLine(needsInput: needsInput, running: running))
             Divider()
             Button("New Agent  ⌥Space") {
-                (NSApp.delegate as? AppDelegate)?.overlayController.handleHotkey(.promptEntry)
+                appDelegate.overlayController.handleHotkey(.promptEntry)
             }
             Button("Manage Agents  ⌥Tab") {
-                (NSApp.delegate as? AppDelegate)?.overlayController.handleHotkey(.management)
+                appDelegate.overlayController.handleHotkey(.management)
             }
             Divider()
             Button("Settings…") {
-                (NSApp.delegate as? AppDelegate)?.showSettingsWindow()
+                appDelegate.showSettingsWindow()
             }
             Button("Quit Assistant") {
                 NSApp.terminate(nil)
