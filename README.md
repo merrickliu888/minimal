@@ -77,8 +77,12 @@ Open agent (conversation):
 | ⇧⏎ | Newline |
 | ⌘V | Toggle voice input into the composer |
 | ⌘Y / ⌘N | Allow / deny a pending tool approval |
+| ⌃` | Toggle a shell terminal pane beside the conversation (opens in the agent's working directory; keeps shell state per session) |
 | esc / ⇥ | Back to the management panel |
 | ⌥Space | Close the overlay |
+
+While the terminal pane has focus, all keys go to the shell (Escape reaches
+vim, etc.) — only ⌃` is intercepted, to toggle back.
 
 All single-letter shortcuts are interpreted against the current interaction
 mode (an explicit state machine, `OverlayInteractionModel`), never globally.

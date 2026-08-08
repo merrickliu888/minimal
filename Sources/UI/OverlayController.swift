@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import SwiftTerm
 import SwiftUI
 
 /// Owns the overlay panels, the interaction state machine, and all keyboard
@@ -32,6 +33,10 @@ final class OverlayController: ObservableObject {
     @Published var openSessionID: UUID?
     @Published var composerText: String = ""
     @Published private(set) var composerTranscribing = false
+    // Terminal pane (Ctrl+`).
+    @Published private(set) var terminalVisible = false
+    @Published private(set) var activeTerminal: LocalProcessTerminalView?
+    private let terminalPaneWidth: CGFloat = 440 // pane 424 + HStack spacing 16
 
     let store: SessionStore
     let coordinator: AgentCoordinator
@@ -151,6 +156,7 @@ final class OverlayController: ObservableObject {
 
         case .hideOverlay:
             stopComposerTranscription()
+            collapseTerminal()
             openSessionID = nil
             confirmingArchiveID = nil
 
@@ -168,6 +174,8 @@ final class OverlayController: ObservableObject {
                 openSessionID = session.id
                 composerText = ""
                 composerBaseText = ""
+                terminalVisible = false
+                activeTerminal = nil
             } else {
                 model.forceMode(.management(confirmingArchive: false))
                 mode = model.mode
@@ -184,6 +192,7 @@ final class OverlayController: ObservableObject {
         case .confirmArchive:
             if let id = confirmingArchiveID {
                 coordinator.archive(sessionID: id)
+                TerminalCache.shared.terminate(sessionID: id)
                 clampSelection()
             }
             confirmingArchiveID = nil
@@ -193,6 +202,7 @@ final class OverlayController: ObservableObject {
 
         case .closeConversation:
             stopComposerTranscription()
+            collapseTerminal()
             openSessionID = nil
 
         case .toggleComposerTranscription:
@@ -204,6 +214,54 @@ final class OverlayController: ObservableObject {
                 transcriber.start()
             }
         }
+    }
+
+    // MARK: - Terminal pane
+
+    /// Ctrl+`: show/hide a shell terminal beside the conversation, scoped to
+    /// the agent's working directory. The window widens to make room.
+    private func toggleTerminal() {
+        guard case .conversation = mode,
+              let panel = conversationPanel,
+              let sessionID = openSessionID,
+              let meta = store.session(id: sessionID)
+        else { return }
+
+        var frame = panel.frame
+        if terminalVisible {
+            terminalVisible = false
+            frame.size.width -= terminalPaneWidth
+            panel.setFrame(frame, display: true)
+            panel.focusFirstTextInput()
+        } else {
+            let terminal = TerminalCache.shared.view(for: sessionID, workingDirectory: meta.workingDirectory)
+            activeTerminal = terminal
+            terminalVisible = true
+            frame.size.width += terminalPaneWidth
+            if let screen = panel.screen ?? NSScreen.main {
+                let visible = screen.visibleFrame
+                if frame.maxX > visible.maxX {
+                    frame.origin.x = max(visible.minX, visible.maxX - frame.width)
+                }
+            }
+            panel.setFrame(frame, display: true)
+            // Focus once SwiftUI has mounted the pane.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak panel, weak terminal] in
+                guard let panel, let terminal else { return }
+                panel.makeFirstResponder(terminal)
+            }
+        }
+    }
+
+    /// Shrink the window back before hiding so the autosaved frame (and next
+    /// open) never includes the terminal pane's width.
+    private func collapseTerminal() {
+        if terminalVisible, let panel = conversationPanel {
+            var frame = panel.frame
+            frame.size.width -= terminalPaneWidth
+            panel.setFrame(frame, display: false)
+        }
+        terminalVisible = false
     }
 
     private static func joined(_ base: String, _ addition: String) -> String {
@@ -487,6 +545,7 @@ final class OverlayController: ObservableObject {
         static let right: UInt16 = 124
         static let down: UInt16 = 125
         static let up: UInt16 = 126
+        static let backtick: UInt16 = 50
     }
 
     /// Returns true when the event was consumed.
@@ -551,6 +610,16 @@ final class OverlayController: ObservableObject {
             }
 
         case .conversation:
+            // Ctrl+` toggles the terminal pane (works from either focus).
+            if event.keyCode == Key.backtick && event.modifierFlags.contains(.control) {
+                toggleTerminal()
+                return true
+            }
+            // A focused terminal gets raw keys — Escape/Tab/Return belong to
+            // the shell and TUI apps inside it, not the overlay.
+            if TerminalCache.isTerminalResponder(conversationPanel?.firstResponder) {
+                return false
+            }
             if event.keyCode == Key.escape { feed(.escape); return true }
             if event.keyCode == Key.tab { feed(.tab); return true }
             if event.modifierFlags.contains(.command) {

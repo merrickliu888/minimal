@@ -13,16 +13,27 @@ struct ConversationView: View {
     private var meta: AgentSessionMeta? { sessionID.flatMap { store.session(id: $0) } }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider().opacity(0.4)
-            transcript
-            pendingPermissionBar
-            Divider().opacity(0.4)
-            composer
+        HStack(spacing: 16) {
+            VStack(spacing: 0) {
+                header
+                Divider().opacity(0.4)
+                transcript
+                pendingPermissionBar
+                Divider().opacity(0.4)
+                composer
+            }
+            .frame(minWidth: 512, maxWidth: .infinity, minHeight: 392, maxHeight: .infinity)
+            .overlayCard(cornerRadius: 14)
+
+            if controller.terminalVisible, let terminal = controller.activeTerminal {
+                TerminalPane(terminalView: terminal)
+                    .padding(12)
+                    .background(Color.black)
+                    .frame(width: 424)
+                    .frame(maxHeight: .infinity)
+                    .overlayCard(cornerRadius: 14)
+            }
         }
-        .frame(minWidth: 512, maxWidth: .infinity, minHeight: 392, maxHeight: .infinity)
-        .overlayCard(cornerRadius: 14)
         .padding(24)
     }
 
@@ -141,6 +152,7 @@ struct ConversationView: View {
                 KeyHint(symbol: "⏎", label: "send")
                 KeyHint(symbol: "⇧⏎", label: "newline")
                 KeyHint(symbol: "⌘V", label: controller.composerTranscribing ? "stop voice" : "voice")
+                KeyHint(symbol: "⌃`", label: controller.terminalVisible ? "hide terminal" : "terminal")
                 Spacer()
             }
         }

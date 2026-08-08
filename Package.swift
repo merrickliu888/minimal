@@ -6,12 +6,14 @@ let package = Package(
     platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/gonzalezreal/textual", from: "0.5.0"),
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.9.0"),
     ],
     targets: [
         .executableTarget(
             name: "Assistant",
             dependencies: [
                 .product(name: "Textual", package: "textual"),
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
             path: "Sources",
             swiftSettings: [
