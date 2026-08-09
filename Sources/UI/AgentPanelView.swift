@@ -136,6 +136,12 @@ struct AgentPanelView: View {
                 .strokeBorder(selected ? Theme.accent.opacity(0.75) : .clear, lineWidth: 1)
                 .padding(.horizontal, 6)
         )
+        // Rows are also mouse targets: click opens the agent.
+        .contentShape(Rectangle())
+        .onTapGesture { controller.openSession(session.id) }
+        .onHover { hovering in
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
     }
 
     @ViewBuilder

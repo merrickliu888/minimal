@@ -309,6 +309,32 @@ final class OverlayController: ObservableObject {
         syncPanels()
     }
 
+    /// Open a session from a mouse click on its management-card row — same
+    /// reset as the keyboard's open, from any pill-side mode.
+    func openSession(_ sessionID: UUID) {
+        guard store.session(id: sessionID) != nil else { return }
+        // Capture in-flight pill dictation into the draft before switching.
+        if case .promptEntry(transcribing: true) = mode {
+            let transcript = transcriber.stop()
+            draftText = Self.joined(pillBaseText, transcript)
+        }
+        if let index = store.panelSessions.firstIndex(where: { $0.id == sessionID }) {
+            selectedIndex = index
+        }
+        confirmingArchiveID = nil
+        clearSuggestions()
+        openSessionID = sessionID
+        composerText = ""
+        composerBaseText = ""
+        terminalVisible = false
+        diffVisible = false
+        modelPaneVisible = false
+        activeTerminal = nil
+        model.forceMode(.conversation)
+        mode = .conversation
+        syncPanels()
+    }
+
     // MARK: - Interaction model plumbing
 
     private func feed(_ input: OverlayInput) {
