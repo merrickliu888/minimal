@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Top-left management panel: Needs Input and Running sections with
-/// keyboard-driven selection, archive confirmation inline.
+/// Agent management card shown directly above the prompt pill: Needs Input
+/// and Running sections with keyboard-driven selection, archive confirmation
+/// inline.
 struct AgentPanelView: View {
     @EnvironmentObject var controller: OverlayController
     @EnvironmentObject var store: SessionStore
@@ -23,11 +24,8 @@ struct AgentPanelView: View {
             Divider().opacity(0.4)
             footer
         }
-        .frame(width: 340)
+        .frame(width: 560) // matches the prompt pill's editing width
         .overlayCard()
-        // Shadow falloff room; keeps the card's corners inside the window.
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var header: some View {

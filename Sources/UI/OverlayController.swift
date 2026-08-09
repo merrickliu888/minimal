@@ -54,8 +54,8 @@ final class OverlayController: ObservableObject {
     var onRequestSettings: () -> Void = {}
 
     private var model = OverlayInteractionModel()
+    /// Bottom-center panel hosting the management card stacked above the pill.
     private var pillPanel: OverlayPanel?
-    private var managementPanel: OverlayPanel?
     private var conversationPanel: OverlayPanel?
     private var keyMonitor: Any?
     private var activeScreen: NSScreen?
@@ -391,10 +391,8 @@ final class OverlayController: ObservableObject {
     /// panel (keyboard-navigable; ⌘⇧G accepts a typed path).
     private func pickWorkingDirectory() {
         let pillWasVisible = pillPanel?.isVisible ?? false
-        let managementWasVisible = managementPanel?.isVisible ?? false
         // Order out (not dismiss) so the pill's state/hierarchy survives.
         pillPanel?.orderOut(nil)
-        managementPanel?.orderOut(nil)
 
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
@@ -413,13 +411,10 @@ final class OverlayController: ObservableObject {
         }
         NSApp.deactivate()
 
-        if case .promptEntry = mode {
-            if managementWasVisible { managementPanel?.orderFrontRegardless() }
-            if pillWasVisible {
-                pillPanel?.orderFrontRegardless()
-                pillPanel?.makeKey()
-                pillPanel?.focusFirstTextInput()
-            }
+        if case .promptEntry = mode, pillWasVisible {
+            pillPanel?.orderFrontRegardless()
+            pillPanel?.makeKey()
+            pillPanel?.focusFirstTextInput()
         }
     }
 
@@ -464,25 +459,23 @@ final class OverlayController: ObservableObject {
 
         case .promptEntry:
             let screen = screenForOverlay()
-            presentManagementPanel(on: screen, focused: false)
             presentPillPanel(on: screen)
             installKeyMonitorIfNeeded()
 
         case .management:
+            // The pill and the management card share one panel, stacked
+            // vertically — which of them "has focus" is driven by `mode`,
+            // so the panel just needs to be key. Drop the field's caret so
+            // it doesn't look editable while the card is navigated.
             let screen = screenForOverlay()
-            // The pill and the panel are one overlay: the pill stays visible
-            // (unfocused) alongside the panel so Tab can cycle focus to it and
-            // the draft is always in view. Present it first so the management
-            // panel is the one that ends up key.
             conversationPanel?.dismiss()
-            presentPillPanel(on: screen, focused: false)
-            presentManagementPanel(on: screen, focused: true)
+            presentPillPanel(on: screen)
+            pillPanel?.makeFirstResponder(nil)
             installKeyMonitorIfNeeded()
 
         case .conversation:
             let screen = screenForOverlay()
             pillPanel?.dismiss()
-            managementPanel?.dismiss()
             presentConversationPanel(on: screen)
             conversationPanel?.focusFirstTextInput()
             installKeyMonitorIfNeeded()
@@ -531,25 +524,29 @@ final class OverlayController: ObservableObject {
 
     private func hideAllPanels() {
         pillPanel?.dismiss()
-        managementPanel?.dismiss()
         conversationPanel?.dismiss()
         removeKeyMonitor()
     }
 
-    private func presentPillPanel(on screen: NSScreen, focused: Bool = true) {
-        // Tall enough for a 5-line draft plus shadow falloff above the card.
-        let size = NSSize(width: 640, height: 280)
+    private func presentPillPanel(on screen: NSScreen) {
+        // Cards are 560 wide + 40 shadow margin each side. Tall enough for
+        // the management card, a 5-line draft, and shadow falloff above.
+        let size = NSSize(
+            width: 640,
+            height: min(680, screen.visibleFrame.height - 48)
+        )
         let panel = pillPanel ?? OverlayPanel(size: size)
         pillPanel = panel
         if panel.isVisible {
             // Already showing: the SwiftUI view tracks @Published state, so
             // rebuilding the hosting view would only destroy field focus.
-            if focused { panel.makeKey() }
+            panel.makeKey()
             return
         }
         panel.setRootView(
             PromptPillView()
                 .environmentObject(self)
+                .environmentObject(store)
                 .environmentObject(transcriber)
         )
         let frame = NSRect(
@@ -557,40 +554,7 @@ final class OverlayController: ObservableObject {
             y: screen.visibleFrame.minY + 48,
             width: size.width, height: size.height
         )
-        if focused {
-            panel.present(on: screen, frame: frame)
-        } else {
-            panel.setFrame(frame, display: true)
-            panel.alphaValue = 1
-            panel.orderFrontRegardless()
-        }
-    }
-
-    private func presentManagementPanel(on screen: NSScreen, focused: Bool) {
-        // Card is 340 wide + 20 shadow margin on each side.
-        let size = NSSize(width: 380, height: 500)
-        let panel = managementPanel ?? OverlayPanel(size: size)
-        managementPanel = panel
-        if panel.isVisible {
-            if focused { panel.makeKey() }
-            return
-        }
-        panel.setRootView(
-            AgentPanelView()
-                .environmentObject(self)
-                .environmentObject(store)
-        )
-        let frame = NSRect(
-            x: screen.visibleFrame.minX + 4,
-            y: screen.visibleFrame.maxY - size.height - 4,
-            width: size.width, height: size.height
-        )
-        if focused {
-            panel.present(on: screen, frame: frame)
-        } else {
-            panel.setFrame(frame, display: true)
-            panel.orderFrontRegardless()
-        }
+        panel.present(on: screen, frame: frame)
     }
 
     private static let conversationFrameKey = "OverlayConversationFrame"

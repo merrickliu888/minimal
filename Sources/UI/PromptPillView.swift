@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Bottom-center prompt pill: waveform while listening, editable text field
-/// once the user types.
+/// Bottom-center overlay: the agent management card stacked directly above
+/// the prompt pill (same width), which shows a waveform while listening and
+/// an editable text field once the user types.
 struct PromptPillView: View {
     @EnvironmentObject var controller: OverlayController
     @EnvironmentObject var transcriber: Transcriber
@@ -19,8 +20,9 @@ struct PromptPillView: View {
     }
 
     var body: some View {
-        VStack {
+        VStack(spacing: 12) {
             Spacer()
+            AgentPanelView()
             Group {
                 if isTranscribing {
                     listeningPill
@@ -29,8 +31,8 @@ struct PromptPillView: View {
                 }
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isTranscribing)
-            .padding(.bottom, 24)
         }
+        .padding(.bottom, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -85,9 +87,10 @@ struct PromptPillView: View {
                 .font(.system(size: 14))
                 .lineLimit(1...5)
                 .focused($fieldFocused)
-                // Don't grab the caret when the pill is showing alongside a
-                // focused management panel; Tab routes focus back explicitly.
+                // Don't grab the caret while the management card above has
+                // focus; Tab routes focus back explicitly.
                 .onAppear { fieldFocused = isFocused }
+                .onChange(of: isFocused) { _, focused in fieldFocused = focused }
 
             HStack(spacing: 14) {
                 if isFocused {

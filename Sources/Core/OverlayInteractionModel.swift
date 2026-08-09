@@ -9,7 +9,7 @@ enum OverlayMode: Equatable {
     /// Bottom-center prompt pill. `transcribing` == listening to speech;
     /// otherwise the pill is an editable text field.
     case promptEntry(transcribing: Bool)
-    /// Top-left agent panel. `confirmingArchive` == awaiting A / Escape.
+    /// Agent panel above the pill. `confirmingArchive` == awaiting A / Escape.
     case management(confirmingArchive: Bool)
     /// Full conversation overlay for one agent.
     case conversation
