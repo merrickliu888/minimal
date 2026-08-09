@@ -26,6 +26,13 @@ final class OverlayController: ObservableObject {
         didSet { UserDefaults.standard.set(draftModel, forKey: Self.pickedModelKey) }
     }
     private static let pickedModelKey = "agentPickedModel"
+    /// Thinking-effort level for the next agent; nil = CLI default. Persisted.
+    @Published var draftEffort: String? {
+        didSet { UserDefaults.standard.set(draftEffort, forKey: Self.pickedEffortKey) }
+    }
+    private static let pickedEffortKey = "agentPickedEffort"
+    // Model picker (⌘M).
+    @Published var modelSelectedIndex: Int = 0
     // Project picker (⌘P).
     @Published var projectSelectedIndex: Int = 0
     @Published private(set) var recentProjects: [String] = []
@@ -83,6 +90,11 @@ final class OverlayController: ObservableObject {
         if let savedModel = UserDefaults.standard.string(forKey: Self.pickedModelKey),
            ClaudeCodeLauncher.modelOptions.contains(savedModel) {
             draftModel = savedModel
+        }
+        if let savedEffort = UserDefaults.standard.string(forKey: Self.pickedEffortKey),
+           ClaudeCodeLauncher.effortOptions.contains(savedEffort),
+           ClaudeCodeLauncher.supportsEffort(model: draftModel) {
+            draftEffort = savedEffort
         }
         loadRecentProjects()
 
@@ -236,6 +248,18 @@ final class OverlayController: ObservableObject {
                 pickWorkingDirectory()
             }
 
+        case .showModelPicker:
+            modelSelectedIndex = 0
+
+        case .modelPrevious:
+            moveModelSelection(-1)
+
+        case .modelNext:
+            moveModelSelection(1)
+
+        case .applyModelSelection:
+            applyModelSelection()
+
         case .toggleComposerTranscription:
             if composerTranscribing {
                 stopComposerTranscription()
@@ -375,7 +399,8 @@ final class OverlayController: ObservableObject {
         }
         addRecentProject(draftWorkingDirectory ?? coordinator.defaultWorkingDirectory)
         openSessionID = coordinator.startAgent(
-            prompt: prompt, workingDirectory: draftWorkingDirectory, model: draftModel
+            prompt: prompt, workingDirectory: draftWorkingDirectory,
+            model: draftModel, effort: draftEffort
         )
         composerText = ""
         composerBaseText = ""
@@ -383,14 +408,45 @@ final class OverlayController: ObservableObject {
 
     /// Display string for the pill's model indicator.
     var pillModelDisplay: String {
-        draftModel ?? "default"
+        let model = draftModel ?? "default"
+        if let effort = draftEffort, ClaudeCodeLauncher.supportsEffort(model: draftModel) {
+            return "\(model) · \(effort)"
+        }
+        return model
     }
 
-    /// ⌘M in the pill: cycle through the model options.
-    private func cycleModel() {
-        let options = ClaudeCodeLauncher.modelOptions
-        let currentIndex = options.firstIndex(of: draftModel) ?? 0
-        draftModel = options[(currentIndex + 1) % options.count]
+    // MARK: - Model picker rows
+
+    /// True when the thinking section is shown for the current draft model.
+    var modelPickerShowsThinking: Bool {
+        ClaudeCodeLauncher.supportsEffort(model: draftModel)
+    }
+
+    private var modelPickerRowCount: Int {
+        ClaudeCodeLauncher.modelOptions.count
+            + (modelPickerShowsThinking ? ClaudeCodeLauncher.effortOptions.count : 0)
+    }
+
+    private func moveModelSelection(_ delta: Int) {
+        let count = modelPickerRowCount
+        modelSelectedIndex = (modelSelectedIndex + delta + count) % count
+    }
+
+    private func applyModelSelection() {
+        let models = ClaudeCodeLauncher.modelOptions
+        if modelSelectedIndex < models.count {
+            draftModel = models[modelSelectedIndex]
+            if !ClaudeCodeLauncher.supportsEffort(model: draftModel) {
+                draftEffort = nil
+            }
+        } else if modelPickerShowsThinking {
+            let efforts = ClaudeCodeLauncher.effortOptions
+            let index = modelSelectedIndex - models.count
+            if index < efforts.count { draftEffort = efforts[index] }
+        }
+        // The thinking section may have appeared/disappeared; keep the
+        // highlight in range.
+        modelSelectedIndex = min(modelSelectedIndex, modelPickerRowCount - 1)
     }
 
     /// ⌘M in the conversation: switch the open session's model live. Cycles
@@ -520,7 +576,7 @@ final class OverlayController: ObservableObject {
             presentPillPanel(on: screen)
             installKeyMonitorIfNeeded()
 
-        case .management, .projectPicker:
+        case .management, .projectPicker, .modelPicker:
             // The pill and the management/projects card share one panel,
             // stacked vertically — which of them "has focus" is driven by
             // `mode`, so the panel just needs to be key. Drop the field's
@@ -716,7 +772,7 @@ final class OverlayController: ObservableObject {
                         feed(.projectKey)
                         return true
                     case "m":
-                        cycleModel()
+                        feed(.modelKey)
                         return true
                     default:
                         return handleEditingCommand(event)
@@ -748,6 +804,24 @@ final class OverlayController: ObservableObject {
             if event.modifierFlags.contains(.command),
                event.charactersIgnoringModifiers?.lowercased() == "p" {
                 feed(.projectKey) // toggle closed
+                return true
+            }
+            switch event.keyCode {
+            case Key.escape: feed(.escape); return true
+            case Key.tab: feed(.tab); return true
+            case Key.up: feed(.navUp); return true
+            case Key.down: feed(.navDown); return true
+            case Key.right, Key.returnKey: feed(.navOpen); return true
+            default:
+                if let c = typedCharacter(event) { feed(.character(c)) }
+                return true // swallow everything else; the picker has no text input
+
+            }
+
+        case .modelPicker:
+            if event.modifierFlags.contains(.command),
+               event.charactersIgnoringModifiers?.lowercased() == "m" {
+                feed(.modelKey) // toggle closed
                 return true
             }
             switch event.keyCode {

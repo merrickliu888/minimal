@@ -255,6 +255,31 @@ func testProjectPickerFlow() {
     expectEqual(m.mode, .hidden, "hidden")
 }
 
+func testModelPickerFlow() {
+    var m = OverlayInteractionModel()
+    _ = m.handle(.promptHotkey)
+
+    expectEqual(m.handle(.modelKey), [.showModelPicker], "cmd+m opens model picker")
+    expectEqual(m.mode, .modelPicker, "model picker mode")
+
+    expectEqual(m.handle(.character("e")), [.modelPrevious], "e navigates up")
+    expectEqual(m.handle(.character("d")), [.modelNext], "d navigates down")
+
+    // Space applies without closing (set model, then thinking).
+    expectEqual(m.handle(.character(" ")), [.applyModelSelection], "space applies, stays open")
+    expectEqual(m.mode, .modelPicker, "still in model picker")
+
+    // Return applies and closes.
+    expectEqual(m.handle(.returnKey), [.applyModelSelection, .beginEditing(seed: nil)], "return applies and closes")
+    expectEqual(m.mode, .promptEntry(transcribing: false), "back to prompt entry")
+
+    // Escape / ⌘M close without applying.
+    _ = m.handle(.modelKey)
+    expectEqual(m.handle(.escape), [.beginEditing(seed: nil)], "escape closes without applying")
+    _ = m.handle(.modelKey)
+    expectEqual(m.handle(.modelKey), [.beginEditing(seed: nil)], "cmd+m toggles closed")
+}
+
 // MARK: - Launcher tests
 
 func testExecutableResolution() {
@@ -293,6 +318,15 @@ func testArguments() {
     let modelArgs = ClaudeCodeLauncher.arguments(sessionID: id, resumeSessionID: nil, model: "haiku")
     expect(modelArgs.contains("--model"), "model flag present")
     expect(modelArgs.contains("haiku"), "model alias present")
+
+    // Effort flag, gated on model support.
+    let effortArgs = ClaudeCodeLauncher.arguments(sessionID: id, resumeSessionID: nil, model: "fable", effort: "high")
+    expect(effortArgs.contains("--effort"), "effort flag present")
+    expect(effortArgs.contains("high"), "effort value present")
+    let haikuEffort = ClaudeCodeLauncher.arguments(sessionID: id, resumeSessionID: nil, model: "haiku", effort: "high")
+    expect(!haikuEffort.contains("--effort"), "no effort flag for haiku")
+    expect(ClaudeCodeLauncher.supportsEffort(model: nil), "default model supports effort")
+    expect(!ClaudeCodeLauncher.supportsEffort(model: "haiku"), "haiku has no effort")
 
     expectEqual(ClaudeCodeLauncher.modelOptions.first ?? "x", nil, "first model option is CLI default")
 
@@ -406,6 +440,7 @@ struct TestRunner {
         testArchiveConfirmation()
         testConversationMode()
         testProjectPickerFlow()
+        testModelPickerFlow()
         testExecutableResolution()
         testArguments()
         testTitleDerivation()

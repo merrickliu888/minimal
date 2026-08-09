@@ -24,6 +24,8 @@ struct PromptPillView: View {
             Spacer()
             if controller.mode == .projectPicker {
                 ProjectPickerView()
+            } else if controller.mode == .modelPicker {
+                ModelPickerView()
             } else {
                 AgentPanelView()
             }

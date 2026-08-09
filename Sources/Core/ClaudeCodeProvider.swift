@@ -65,6 +65,7 @@ final class ClaudeCodeProvider: AgentProvider {
         initialPrompt: String?,
         workingDirectory: String,
         model: String?,
+        effort: String?,
         resumeProviderSessionID: String?
     ) throws -> AgentRun {
         guard let executable = resolvedExecutable else {
@@ -77,6 +78,7 @@ final class ClaudeCodeProvider: AgentProvider {
             executable: executable,
             workingDirectory: workingDirectory,
             model: model,
+            effort: effort,
             resumeProviderSessionID: resumeProviderSessionID
         )
         try run.start()
@@ -162,6 +164,7 @@ final class ClaudeCodeRun: AgentRun {
     private let executable: String
     private let workingDirectory: String
     private let model: String?
+    private let effort: String?
     private let resumeProviderSessionID: String?
 
     private let process = Process()
@@ -177,11 +180,12 @@ final class ClaudeCodeRun: AgentRun {
     /// error result reads as "interrupted", not "failed".
     private var interruptRequested = false
 
-    init(sessionID: UUID, executable: String, workingDirectory: String, model: String?, resumeProviderSessionID: String?) {
+    init(sessionID: UUID, executable: String, workingDirectory: String, model: String?, effort: String?, resumeProviderSessionID: String?) {
         self.sessionID = sessionID
         self.executable = executable
         self.workingDirectory = workingDirectory
         self.model = model
+        self.effort = effort
         self.resumeProviderSessionID = resumeProviderSessionID
     }
 
@@ -190,7 +194,8 @@ final class ClaudeCodeRun: AgentRun {
         process.arguments = ClaudeCodeLauncher.arguments(
             sessionID: sessionID,
             resumeSessionID: resumeProviderSessionID,
-            model: model
+            model: model,
+            effort: effort
         )
         process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
         process.environment = ClaudeCodeProvider.childEnvironment()

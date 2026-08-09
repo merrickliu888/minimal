@@ -31,13 +31,14 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
     /// directory (Settings default when nil). Returns the session id so the
     /// overlay can open its conversation immediately.
     @discardableResult
-    func startAgent(prompt: String, workingDirectory: String? = nil, model: String? = nil) -> UUID {
+    func startAgent(prompt: String, workingDirectory: String? = nil, model: String? = nil, effort: String? = nil) -> UUID {
         let meta = AgentSessionMeta(
             providerID: provider.id,
             providerSessionID: nil,
             title: ClaudeCodeLauncher.title(fromPrompt: prompt),
             workingDirectory: workingDirectory ?? defaultWorkingDirectory,
             model: model,
+            effort: effort,
             state: .running,
             statusDetail: "Starting…"
         )
@@ -56,6 +57,7 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
                 initialPrompt: prompt,
                 workingDirectory: meta.workingDirectory,
                 model: meta.model,
+                effort: meta.effort,
                 resumeProviderSessionID: nil
             )
             run.delegate = self
@@ -83,6 +85,7 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
                 initialPrompt: text,
                 workingDirectory: meta.workingDirectory,
                 model: meta.model,
+                effort: meta.effort,
                 resumeProviderSessionID: meta.providerSessionID
             )
             run.delegate = self

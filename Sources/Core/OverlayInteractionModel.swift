@@ -13,6 +13,8 @@ enum OverlayMode: Equatable {
     case management(confirmingArchive: Bool)
     /// Recent-projects picker shown in place of the agent panel (⌘P).
     case projectPicker
+    /// Model + thinking-level picker shown in place of the agent panel (⌘M).
+    case modelPicker
     /// Full conversation overlay for one agent.
     case conversation
 }
@@ -23,6 +25,7 @@ enum OverlayInput: Equatable {
     case managementHotkey   // Option+Tab (global)
     case voiceKey           // Cmd+D while the overlay is open: toggles voice
     case projectKey         // Cmd+P in prompt entry: toggles the project picker
+    case modelKey           // Cmd+M in prompt entry: toggles the model picker
     case escape
     case returnKey
     case tab
@@ -62,6 +65,12 @@ enum OverlayCommand: Equatable {
     case projectNext
     /// Apply the highlighted project (or open the add-new file picker).
     case chooseProject
+    // Model picker.
+    case showModelPicker
+    case modelPrevious
+    case modelNext
+    /// Apply the highlighted model or thinking-level row.
+    case applyModelSelection
 }
 
 struct OverlayInteractionModel {
@@ -128,6 +137,43 @@ struct OverlayInteractionModel {
                 return transcribing
                     ? [.stopTranscription, .showProjectPicker]
                     : [.showProjectPicker]
+            case .modelKey:
+                mode = .modelPicker
+                return transcribing
+                    ? [.stopTranscription, .showModelPicker]
+                    : [.showModelPicker]
+            default:
+                return []
+            }
+
+        case .modelPicker:
+            switch input {
+            case .navUp:
+                return [.modelPrevious]
+            case .navDown:
+                return [.modelNext]
+            case .character(let c):
+                switch c.lowercased() {
+                case "e": return [.modelPrevious]
+                case "d": return [.modelNext]
+                case " ":
+                    // Space applies without closing, so model and thinking
+                    // can be set in one visit.
+                    return [.applyModelSelection]
+                default: return []
+                }
+            case .navOpen, .returnKey:
+                mode = .promptEntry(transcribing: false)
+                return [.applyModelSelection, .beginEditing(seed: nil)]
+            case .escape, .tab, .modelKey:
+                mode = .promptEntry(transcribing: false)
+                return [.beginEditing(seed: nil)]
+            case .promptHotkey:
+                mode = .hidden
+                return [.hideOverlay]
+            case .managementHotkey:
+                mode = .management(confirmingArchive: false)
+                return [.showManagement]
             default:
                 return []
             }

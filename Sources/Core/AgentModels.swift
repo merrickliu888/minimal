@@ -50,6 +50,8 @@ struct AgentSessionMeta: Identifiable, Codable, Equatable {
     /// Model alias the session was started with (nil = CLI default). Reused
     /// on resume so a session keeps its model.
     var model: String?
+    /// Thinking-effort level (nil = CLI default). Reused on resume.
+    var effort: String?
     var state: AgentState
     /// One-line summary of the latest activity, for the panel.
     var statusDetail: String?
@@ -122,6 +124,7 @@ protocol AgentProvider: AnyObject {
         initialPrompt: String?,
         workingDirectory: String,
         model: String?,
+        effort: String?,
         resumeProviderSessionID: String?
     ) throws -> AgentRun
 

@@ -39,15 +39,24 @@ enum ClaudeCodeLauncher {
         return nil
     }
 
-    /// Model aliases the pill's ⌘M cycles through; nil = CLI default.
+    /// Model aliases offered in the Model tab; nil = CLI default.
     static let modelOptions: [String?] = [nil, "fable", "opus", "sonnet", "haiku"]
+
+    /// Thinking-effort levels (--effort); nil = CLI default.
+    static let effortOptions: [String?] = [nil, "low", "medium", "high", "xhigh", "max"]
+
+    /// Whether the model supports an adjustable thinking-effort level.
+    static func supportsEffort(model: String?) -> Bool {
+        model != "haiku"
+    }
 
     /// Arguments for a streaming conversation process.
     /// - `sessionID`: our UUID, handed to the CLI so resume works even if we
     ///   crash before the CLI reports its own id (new sessions only).
     /// - `resumeSessionID`: provider session to resume instead.
     /// - `model`: model alias, or nil for the user's CLI default.
-    static func arguments(sessionID: UUID, resumeSessionID: String?, model: String? = nil) -> [String] {
+    /// - `effort`: thinking-effort level, or nil for the CLI default.
+    static func arguments(sessionID: UUID, resumeSessionID: String?, model: String? = nil, effort: String? = nil) -> [String] {
         var args = [
             "-p",
             "--verbose",
@@ -67,6 +76,9 @@ enum ClaudeCodeLauncher {
         ]
         if let model {
             args += ["--model", model]
+        }
+        if let effort, supportsEffort(model: model) {
+            args += ["--effort", effort]
         }
         if let resume = resumeSessionID {
             args += ["--resume", resume]

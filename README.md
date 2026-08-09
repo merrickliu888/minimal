@@ -49,7 +49,7 @@ Prompt entry (bottom pill):
 |---|---|
 | ⌘D | Toggle voice transcription (appends to typed text) |
 | ⌘P | Open the Projects picker in place of the agents card: recent directories navigated with E/D/arrows, Space/⏎ selects, and an "Add new project…" row opens the system directory picker. Esc or ⌘P closes it |
-| ⌘M | Cycle the agent's model (default → fable → opus → sonnet → haiku) |
+| ⌘M | Open the Model tab: pick the model and (when supported) its thinking level. E/D/arrows navigate, Space applies and stays open, ⏎ applies and closes, esc/⌘M closes |
 | any typing key | While listening: stop transcription, keep typing |
 | ⏎ | Submit prompt, start agent, open its conversation |
 | ⇥ | Move focus to the agent panel |
