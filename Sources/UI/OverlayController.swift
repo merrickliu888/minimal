@@ -406,13 +406,12 @@ final class OverlayController: ObservableObject {
         composerBaseText = ""
     }
 
-    /// Display string for the pill's model indicator.
+    /// Display string for the pill's model indicator; includes the thinking
+    /// level whenever the configured model supports one.
     var pillModelDisplay: String {
         let model = draftModel ?? "default"
-        if let effort = draftEffort, ClaudeCodeLauncher.supportsEffort(model: draftModel) {
-            return "\(model) · \(effort)"
-        }
-        return model
+        guard ClaudeCodeLauncher.supportsEffort(model: draftModel) else { return model }
+        return "\(model) · \(draftEffort ?? "default")"
     }
 
     // MARK: - Model picker rows
@@ -495,8 +494,14 @@ final class OverlayController: ObservableObject {
         projectSelectedIndex = (projectSelectedIndex + delta + count) % count
     }
 
-    /// Display string for the pill: the directory the next agent will use.
+    /// Display string for the pill: the project (last path component) the
+    /// next agent will run in.
     var pillWorkingDirectoryDisplay: String {
+        ((draftWorkingDirectory ?? coordinator.defaultWorkingDirectory) as NSString).lastPathComponent
+    }
+
+    /// Full path, for the hover tooltip.
+    var pillWorkingDirectoryFullPath: String {
         ((draftWorkingDirectory ?? coordinator.defaultWorkingDirectory) as NSString).abbreviatingWithTildeInPath
     }
 

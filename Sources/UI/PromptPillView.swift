@@ -100,7 +100,6 @@ struct PromptPillView: View {
 
             HStack(spacing: 14) {
                 if isFocused {
-                    KeyHint(symbol: "⏎", label: "start agent")
                     KeyHint(symbol: "⌘D", label: "voice")
                     KeyHint(symbol: "⌘P", label: "project")
                     KeyHint(symbol: "⌘M", label: "model")
@@ -121,10 +120,9 @@ struct PromptPillView: View {
                     Text(controller.pillWorkingDirectoryDisplay)
                         .font(.system(size: 10, design: .monospaced))
                         .lineLimit(1)
-                        .truncationMode(.head)
                 }
                 .foregroundStyle(Theme.textSecondary)
-                .frame(maxWidth: 280, alignment: .trailing)
+                .help(controller.pillWorkingDirectoryFullPath)
             }
         }
         .padding(.horizontal, 18)
