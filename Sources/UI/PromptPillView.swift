@@ -22,7 +22,11 @@ struct PromptPillView: View {
     var body: some View {
         VStack(spacing: 12) {
             Spacer()
-            if controller.mode == .projectPicker {
+            if controller.suggestionPopupVisible && controller.suggestionField == .pill {
+                // While an @/-token is being typed, the suggestions take the
+                // management card's slot above the pill.
+                SuggestionPopupView()
+            } else if controller.mode == .projectPicker {
                 ProjectPickerView()
             } else if controller.mode == .modelPicker {
                 ModelPickerView()

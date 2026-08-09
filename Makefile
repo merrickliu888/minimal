@@ -12,7 +12,8 @@ TEST_SOURCES = $(shell find Tests -name '*.swift' -type f | LC_ALL=C sort) \
 	Sources/Core/OverlayInteractionModel.swift \
 	Sources/Core/SessionStore.swift \
 	Sources/Core/ClaudeCodeLauncher.swift \
-	Sources/Core/GitInfo.swift
+	Sources/Core/GitInfo.swift \
+	Sources/Core/InlineTrigger.swift
 
 empty :=
 space := $(empty) $(empty)
@@ -35,9 +36,12 @@ app: $(SOURCES) Package.swift Info.plist Overlay.entitlements
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
 	@cp "$(SPM_BIN)/$(APP_NAME)" "$(MACOS_DIR)/$(APP_NAME)"
 	@# SwiftPM resource bundles (e.g. Textual's syntax highlighter grammars)
-	@# must sit in Contents/Resources for Bundle.module to resolve.
+	@# must sit in Contents/Resources for Bundle.module to resolve. SwiftPM
+	@# writes bundle files read-only, so stale copies must go before cp.
 	@for b in "$(SPM_BIN)"/*.bundle; do \
-		[ -e "$$b" ] && cp -R "$$b" "$(RESOURCES)/" || true; \
+		[ -e "$$b" ] || continue; \
+		rm -rf "$(RESOURCES)/$$(basename "$$b")"; \
+		cp -R "$$b" "$(RESOURCES)/"; \
 	done
 	@cp Info.plist "$(CONTENTS)/"
 	@plutil -replace CFBundleName -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"

@@ -19,6 +19,10 @@ struct ConversationView: View {
                 Divider().opacity(0.4)
                 transcript
                 pendingPermissionBar
+                if controller.suggestionPopupVisible && controller.suggestionField == .composer {
+                    Divider().opacity(0.4)
+                    SuggestionPopupView(embedded: true)
+                }
                 Divider().opacity(0.4)
                 composer
             }

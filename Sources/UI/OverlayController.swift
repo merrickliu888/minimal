@@ -56,6 +56,19 @@ final class OverlayController: ObservableObject {
     @Published private(set) var modelPaneVisible = false
     private let sidePaneWidth: CGFloat = 440 // pane 424 + HStack spacing 16
 
+    // Inline @file / /command suggestions (pill + composer).
+    enum SuggestionField { case pill, composer }
+    @Published private(set) var suggestions: [InlineSuggestion] = []
+    @Published private(set) var suggestionsLoading = false
+    /// Which input the popup belongs to; nil = hidden.
+    @Published private(set) var suggestionField: SuggestionField?
+    @Published var suggestionIndex = 0
+    private var suggestionToken: InlineToken?
+    /// Token the user dismissed with Esc — don't re-show until it changes.
+    private var suppressedToken: InlineToken?
+    private var fileCache: [String: (files: [String], fetchedAt: Date)] = [:]
+    private var fileFetchInflight: Set<String> = []
+
     let store: SessionStore
     let coordinator: AgentCoordinator
     let transcriber: Transcriber
@@ -111,6 +124,160 @@ final class OverlayController: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        // Recompute @/-suggestions as either input changes. The debounce
+        // also lets the field editor's caret settle after each keystroke.
+        $draftText
+            .removeDuplicates()
+            .debounce(for: .milliseconds(60), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshSuggestions(field: .pill) }
+            .store(in: &cancellables)
+        $composerText
+            .removeDuplicates()
+            .debounce(for: .milliseconds(60), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshSuggestions(field: .composer) }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Inline @file and /command suggestions
+
+    var suggestionPopupVisible: Bool {
+        suggestionField != nil && (!suggestions.isEmpty || suggestionsLoading)
+    }
+
+    private func suggestionText(for field: SuggestionField) -> String {
+        field == .pill ? draftText : composerText
+    }
+
+    private func suggestionDirectory(for field: SuggestionField) -> String {
+        switch field {
+        case .pill: return draftWorkingDirectory ?? coordinator.defaultWorkingDirectory
+        case .composer: return sessionMeta?.workingDirectory ?? coordinator.defaultWorkingDirectory
+        }
+    }
+
+    /// Cursor as a character offset, from the panel's field editor; falls
+    /// back to end-of-text when the editor and binding disagree.
+    private func suggestionCursor(for field: SuggestionField, text: String) -> Int {
+        let panel = field == .pill ? pillPanel : conversationPanel
+        guard let editor = panel?.firstResponder as? NSTextView,
+              editor.string == text
+        else { return text.count }
+        let location = editor.selectedRange().location
+        guard location != NSNotFound else { return text.count }
+        let index = String.Index(utf16Offset: min(location, text.utf16.count), in: text)
+        return text.distance(from: text.startIndex, to: index)
+    }
+
+    private func refreshSuggestions(field: SuggestionField) {
+        // Only while the matching input is actually being typed into.
+        switch field {
+        case .pill:
+            guard case .promptEntry(transcribing: false) = mode else {
+                if suggestionField == .pill { clearSuggestions() }
+                return
+            }
+        case .composer:
+            guard case .conversation = mode, !modelPaneVisible, !composerTranscribing else {
+                if suggestionField == .composer { clearSuggestions() }
+                return
+            }
+        }
+
+        let text = suggestionText(for: field)
+        let cursor = suggestionCursor(for: field, text: text)
+        guard let token = InlineTrigger.activeToken(text: text, cursor: cursor) else {
+            if suggestionField == field || suggestionField == nil { clearSuggestions() }
+            return
+        }
+        // An Esc-dismissed token stays hidden until the trigger moves.
+        if let suppressed = suppressedToken,
+           suppressed.kind == token.kind, suppressed.start == token.start {
+            clearSuggestions(keepSuppressed: true)
+            return
+        }
+        suppressedToken = nil
+        suggestionToken = token
+        suggestionField = field
+
+        let directory = suggestionDirectory(for: field)
+        switch token.kind {
+        case .slashCommand:
+            if let commands = SlashCommandCatalog.shared.cached(for: directory) {
+                suggestionsLoading = false
+                setSuggestions(InlineTrigger.filterCommands(commands, query: token.query).map { .command($0) })
+            } else {
+                suggestionsLoading = true
+                suggestions = []
+                Task { [weak self] in
+                    _ = await SlashCommandCatalog.shared.commands(for: directory)
+                    self?.refreshSuggestions(field: field)
+                }
+            }
+        case .fileMention:
+            if let entry = fileCache[directory], Date().timeIntervalSince(entry.fetchedAt) < 20 {
+                suggestionsLoading = false
+                setSuggestions(InlineTrigger.filterFiles(entry.files, query: token.query).map { .file($0) })
+            } else {
+                suggestionsLoading = true
+                if fileCache[directory] == nil { suggestions = [] }
+                guard !fileFetchInflight.contains(directory) else { return }
+                fileFetchInflight.insert(directory)
+                Task.detached(priority: .userInitiated) {
+                    let files = FileLister.listFiles(at: directory)
+                    await MainActor.run { [weak self] in
+                        guard let self else { return }
+                        self.fileCache[directory] = (files, Date())
+                        self.fileFetchInflight.remove(directory)
+                        self.refreshSuggestions(field: field)
+                    }
+                }
+            }
+        }
+    }
+
+    private func setSuggestions(_ new: [InlineSuggestion]) {
+        suggestions = new
+        suggestionIndex = min(suggestionIndex, max(0, new.count - 1))
+        if new.isEmpty && !suggestionsLoading { suggestionField = nil }
+    }
+
+    func moveSuggestion(_ delta: Int) {
+        guard !suggestions.isEmpty else { return }
+        suggestionIndex = (suggestionIndex + delta + suggestions.count) % suggestions.count
+    }
+
+    func acceptSuggestion() {
+        guard let token = suggestionToken, let field = suggestionField,
+              suggestionIndex < suggestions.count
+        else { return }
+        let text = suggestionText(for: field)
+        let newText: String
+        switch suggestions[suggestionIndex] {
+        case .file(let path):
+            newText = InlineTrigger.replacingFileMention(text: text, token: token, path: path)
+        case .command(let command):
+            newText = InlineTrigger.replacingSlashCommand(text: text, token: token, commandName: command.name)
+        }
+        switch field {
+        case .pill: draftText = newText
+        case .composer: composerText = newText
+        }
+        clearSuggestions()
+    }
+
+    func dismissSuggestions() {
+        suppressedToken = suggestionToken
+        clearSuggestions(keepSuppressed: true)
+    }
+
+    private func clearSuggestions(keepSuppressed: Bool = false) {
+        suggestions = []
+        suggestionsLoading = false
+        suggestionField = nil
+        suggestionToken = nil
+        suggestionIndex = 0
+        if !keepSuppressed { suppressedToken = nil }
     }
 
     // MARK: - Entry points
@@ -153,6 +320,7 @@ final class OverlayController: ObservableObject {
 
         case .startTranscription:
             // Voice appends to whatever is already typed.
+            clearSuggestions()
             pillBaseText = draftText
             transcriber.start()
 
@@ -181,6 +349,7 @@ final class OverlayController: ObservableObject {
         case .hideOverlay:
             stopComposerTranscription()
             collapseSidePanes()
+            clearSuggestions()
             openSessionID = nil
             confirmingArchiveID = nil
 
@@ -195,6 +364,7 @@ final class OverlayController: ObservableObject {
 
         case .openSelected:
             if let session = selectedSession() {
+                clearSuggestions()
                 openSessionID = session.id
                 composerText = ""
                 composerBaseText = ""
@@ -229,6 +399,7 @@ final class OverlayController: ObservableObject {
         case .closeConversation:
             stopComposerTranscription()
             collapseSidePanes()
+            clearSuggestions()
             openSessionID = nil
 
         case .showProjectPicker:
@@ -266,6 +437,7 @@ final class OverlayController: ObservableObject {
             if composerTranscribing {
                 stopComposerTranscription()
             } else {
+                clearSuggestions()
                 composerBaseText = composerText
                 composerTranscribing = true
                 transcriber.start()
@@ -812,6 +984,7 @@ final class OverlayController: ObservableObject {
             return false
 
         case .promptEntry(let transcribing):
+            if !transcribing, let handled = routeSuggestionKey(event) { return handled }
             switch event.keyCode {
             case Key.escape: feed(.escape); return true
             case Key.returnKey where event.modifierFlags.contains(.shift) && !transcribing:
@@ -944,6 +1117,7 @@ final class OverlayController: ObservableObject {
                     }
                 }
             }
+            if let handled = routeSuggestionKey(event) { return handled }
             // ⌃C stops the in-flight agent turn (composer focus only — in
             // the terminal pane ⌃C belongs to the shell, handled above).
             if event.modifierFlags.contains(.control),
@@ -979,6 +1153,27 @@ final class OverlayController: ObservableObject {
             }
             return false // typing flows into the composer
 
+        }
+    }
+
+    /// Keys the @/-suggestion popup owns while visible. Returns nil when the
+    /// popup is hidden or the key isn't one of its (event falls through).
+    private func routeSuggestionKey(_ event: NSEvent) -> Bool? {
+        guard suggestionPopupVisible else { return nil }
+        if event.keyCode == Key.escape {
+            dismissSuggestions()
+            return true
+        }
+        guard !suggestions.isEmpty else { return nil } // still loading
+        switch event.keyCode {
+        case Key.up: moveSuggestion(-1); return true
+        case Key.down: moveSuggestion(1); return true
+        case Key.tab: acceptSuggestion(); return true
+        case Key.returnKey where !event.modifierFlags.contains(.shift):
+            acceptSuggestion()
+            return true
+        default:
+            return nil
         }
     }
 

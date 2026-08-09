@@ -158,6 +158,42 @@ enum StreamJSON {
         ])
     }
 
+    /// Handshake used by the Agent SDK; the CLI's success response carries
+    /// the full slash-command list (built-ins, custom commands, skills).
+    static func encodeInitialize(requestID: String) -> String? {
+        serializeLine([
+            "type": "control_request",
+            "request_id": requestID,
+            "request": ["subtype": "initialize"],
+        ])
+    }
+
+    /// Parse the control_response to an `initialize` request. Returns nil
+    /// for unrelated lines; an empty array for a matching response without
+    /// commands.
+    static func parseInitializeCommands(_ line: String, requestID: String) -> [SlashCommand]? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let data = trimmed.data(using: .utf8),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              obj["type"] as? String == "control_response",
+              let response = obj["response"] as? [String: Any],
+              response["request_id"] as? String == requestID
+        else { return nil }
+        guard response["subtype"] as? String == "success",
+              let inner = response["response"] as? [String: Any],
+              let commands = inner["commands"] as? [[String: Any]]
+        else { return [] }
+        return commands.compactMap { entry in
+            guard let name = entry["name"] as? String, !name.isEmpty else { return nil }
+            return SlashCommand(
+                name: name,
+                description: entry["description"] as? String ?? "",
+                argumentHint: entry["argumentHint"] as? String ?? ""
+            )
+        }
+    }
+
     private static func serializeLine(_ payload: [String: Any]) -> String? {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let line = String(data: data, encoding: .utf8)

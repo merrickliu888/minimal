@@ -425,6 +425,105 @@ func testPanelOrdering() {
     expectEqual(panel[2].title, "broken", "failed last")
 }
 
+// MARK: - Inline trigger tests
+
+func testInlineTokenDetection() {
+    // @file mentions
+    let atEnd = InlineTrigger.activeToken(text: "look at @src/ma", cursor: 15)
+    expectEqual(atEnd, InlineToken(kind: .fileMention, start: 8, end: 15, query: "src/ma"), "@ mention at end")
+
+    let bareAt = InlineTrigger.activeToken(text: "@", cursor: 1)
+    expectEqual(bareAt, InlineToken(kind: .fileMention, start: 0, end: 1, query: ""), "bare @ triggers with empty query")
+
+    expectEqual(InlineTrigger.activeToken(text: "a@b c", cursor: 5), nil, "space after @ token ends it")
+    expectEqual(InlineTrigger.activeToken(text: "email @\"x", cursor: 9), nil, "quote invalidates @ query")
+
+    // /commands
+    let slashStart = InlineTrigger.activeToken(text: "/comp", cursor: 5)
+    expectEqual(slashStart, InlineToken(kind: .slashCommand, start: 0, end: 5, query: "comp"), "/ at start")
+
+    let slashInline = InlineTrigger.activeToken(text: "run /rev", cursor: 8)
+    expectEqual(slashInline, InlineToken(kind: .slashCommand, start: 4, end: 8, query: "rev"), "/ after whitespace")
+
+    expectEqual(InlineTrigger.activeToken(text: "src/main", cursor: 8), nil, "path slash does not trigger")
+    expectEqual(InlineTrigger.activeToken(text: "a/b/c", cursor: 5), nil, "nested path slash does not trigger")
+
+    // Cursor before the trigger sees nothing.
+    expectEqual(InlineTrigger.activeToken(text: "hello @file", cursor: 5), nil, "cursor before trigger")
+    // @path with slashes still a file mention, not a command.
+    let atPath = InlineTrigger.activeToken(text: "@src/ui/view.swift", cursor: 18)
+    expectEqual(atPath?.kind, .fileMention, "@ with slashes stays a file mention")
+}
+
+func testInlineReplacement() {
+    let token = InlineToken(kind: .fileMention, start: 8, end: 15, query: "src/ma")
+    expectEqual(
+        InlineTrigger.replacingFileMention(text: "look at @src/ma", token: token, path: "src/main.swift"),
+        "look at @src/main.swift ",
+        "file replacement adds trailing space at end"
+    )
+    let midToken = InlineToken(kind: .fileMention, start: 0, end: 3, query: "ma")
+    expectEqual(
+        InlineTrigger.replacingFileMention(text: "@ma then more", token: midToken, path: "main.swift"),
+        "@main.swift then more",
+        "mid-text replacement keeps the tail, no extra space"
+    )
+    expectEqual(
+        InlineTrigger.replacingFileMention(
+            text: "@doc", token: InlineToken(kind: .fileMention, start: 0, end: 4, query: "doc"),
+            path: "my docs/notes.md"
+        ),
+        "@\"my docs/notes.md\" ",
+        "paths with spaces get quoted"
+    )
+    let cmdToken = InlineToken(kind: .slashCommand, start: 0, end: 5, query: "comp")
+    expectEqual(
+        InlineTrigger.replacingSlashCommand(text: "/comp", token: cmdToken, commandName: "compact"),
+        "/compact ",
+        "command replacement adds trailing space at end"
+    )
+}
+
+func testInlineFiltering() {
+    let files = ["Sources/UI/Theme.swift", "Sources/Core/StreamJSON.swift", "README.md", "Tests/CoreTests.swift"]
+    expectEqual(InlineTrigger.filterFiles(files, query: "stream"), ["Sources/Core/StreamJSON.swift"], "filename match")
+    expectEqual(InlineTrigger.filterFiles(files, query: "core"),
+                ["Tests/CoreTests.swift", "Sources/Core/StreamJSON.swift"],
+                "filename substring beats path-only substring")
+    expectEqual(InlineTrigger.filterFiles(files, query: ""), files, "empty query returns head of list")
+    expectEqual(InlineTrigger.filterFiles(files, query: "zzz"), [], "no match")
+
+    let commands = [
+        SlashCommand(name: "compact", description: "Compact the conversation", argumentHint: ""),
+        SlashCommand(name: "review", description: "Review a PR", argumentHint: "[pr]"),
+        SlashCommand(name: "commit", description: "Create a git commit", argumentHint: ""),
+    ]
+    expectEqual(InlineTrigger.filterCommands(commands, query: "com").map(\.name), ["commit", "compact"], "prefix matches sorted by name")
+    expectEqual(InlineTrigger.filterCommands(commands, query: "pr").map(\.name), ["review"], "description hit")
+    expectEqual(InlineTrigger.filterCommands(commands, query: "").count, 3, "empty query returns all")
+}
+
+func testInitializeProtocol() {
+    let encoded = StreamJSON.encodeInitialize(requestID: "init-1")!
+    let decoded = try! JSONSerialization.jsonObject(with: encoded.data(using: .utf8)!) as! [String: Any]
+    expectEqual(decoded["type"] as! String, "control_request", "initialize type")
+    expectEqual(decoded["request_id"] as! String, "init-1", "initialize request id")
+    expectEqual((decoded["request"] as! [String: Any])["subtype"] as! String, "initialize", "initialize subtype")
+
+    let response = #"{"type":"control_response","response":{"subtype":"success","request_id":"init-1","response":{"commands":[{"name":"compact","description":"Compact","argumentHint":""},{"name":"review","description":"Review","argumentHint":"[pr]"}]}}}"#
+    let commands = StreamJSON.parseInitializeCommands(response, requestID: "init-1")
+    expectEqual(commands, [
+        SlashCommand(name: "compact", description: "Compact", argumentHint: ""),
+        SlashCommand(name: "review", description: "Review", argumentHint: "[pr]"),
+    ], "commands parsed")
+
+    expectEqual(StreamJSON.parseInitializeCommands(response, requestID: "other"), nil, "mismatched request id ignored")
+    let unrelated = #"{"type":"assistant","message":{}}"#
+    expectEqual(StreamJSON.parseInitializeCommands(unrelated, requestID: "init-1"), nil, "unrelated line ignored")
+    let errorResponse = #"{"type":"control_response","response":{"subtype":"error","request_id":"init-1","error":"nope"}}"#
+    expectEqual(StreamJSON.parseInitializeCommands(errorResponse, requestID: "init-1"), [], "error response yields empty list")
+}
+
 // MARK: - Runner
 
 @main
@@ -447,6 +546,10 @@ struct TestRunner {
         testDiffParsing()
         testSessionStorePersistence()
         testPanelOrdering()
+        testInlineTokenDetection()
+        testInlineReplacement()
+        testInlineFiltering()
+        testInitializeProtocol()
 
         if failureCount > 0 {
             print("\(failureCount)/\(testCount) checks FAILED")
