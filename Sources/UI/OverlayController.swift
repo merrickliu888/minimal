@@ -53,6 +53,7 @@ final class OverlayController: ObservableObject {
     @Published private(set) var diffVisible = false
     @Published private(set) var diffLines: [DiffLine] = []
     @Published private(set) var diffIsEmpty = false
+    @Published private(set) var modelPaneVisible = false
     private let sidePaneWidth: CGFloat = 440 // pane 424 + HStack spacing 16
 
     let store: SessionStore
@@ -199,6 +200,7 @@ final class OverlayController: ObservableObject {
                 composerBaseText = ""
                 terminalVisible = false
                 diffVisible = false
+                modelPaneVisible = false
                 activeTerminal = nil
             } else {
                 model.forceMode(.management(confirmingArchive: false))
@@ -308,8 +310,9 @@ final class OverlayController: ObservableObject {
         }
         let terminal = TerminalCache.shared.view(for: sessionID, workingDirectory: meta.workingDirectory)
         activeTerminal = terminal
-        if diffVisible {
-            diffVisible = false // swap panes; width stays
+        if diffVisible || modelPaneVisible {
+            diffVisible = false
+            modelPaneVisible = false // swap panes; width stays
         } else {
             expandSideSlot(panel)
         }
@@ -346,8 +349,9 @@ final class OverlayController: ObservableObject {
                 else { return }
                 self.diffLines = lines
                 self.diffIsEmpty = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                if self.terminalVisible {
-                    self.terminalVisible = false // swap panes; width stays
+                if self.terminalVisible || self.modelPaneVisible {
+                    self.terminalVisible = false
+                    self.modelPaneVisible = false // swap panes; width stays
                 } else if !self.diffVisible {
                     self.expandSideSlot(panel)
                 }
@@ -356,14 +360,79 @@ final class OverlayController: ObservableObject {
         }
     }
 
+    /// ⌘M in the conversation: model/thinking picker in the side slot.
+    private func toggleModelPane() {
+        guard case .conversation = mode,
+              let panel = conversationPanel,
+              openSessionID != nil
+        else { return }
+
+        if modelPaneVisible {
+            modelPaneVisible = false
+            shrinkSideSlot(panel)
+            panel.focusFirstTextInput()
+            return
+        }
+        modelSelectedIndex = 0
+        if terminalVisible || diffVisible {
+            terminalVisible = false
+            diffVisible = false // swap panes; width stays
+        } else {
+            expandSideSlot(panel)
+        }
+        modelPaneVisible = true
+    }
+
+    /// Rows in the session model pane: concrete models (a live session can't
+    /// return to "CLI default"), plus thinking levels when supported.
+    private var sessionMeta: AgentSessionMeta? {
+        openSessionID.flatMap { store.session(id: $0) }
+    }
+
+    var sessionConcreteModels: [String] {
+        ClaudeCodeLauncher.modelOptions.compactMap { $0 }
+    }
+
+    var sessionPaneShowsThinking: Bool {
+        ClaudeCodeLauncher.supportsEffort(model: sessionMeta?.model)
+    }
+
+    private var sessionModelRowCount: Int {
+        sessionConcreteModels.count
+            + (sessionPaneShowsThinking ? ClaudeCodeLauncher.effortOptions.count : 0)
+    }
+
+    private func moveSessionModelSelection(_ delta: Int) {
+        let count = sessionModelRowCount
+        modelSelectedIndex = (modelSelectedIndex + delta + count) % count
+    }
+
+    private func applySessionModelSelection() {
+        guard let sessionID = openSessionID else { return }
+        let models = sessionConcreteModels
+        if modelSelectedIndex < models.count {
+            coordinator.setModel(models[modelSelectedIndex], for: sessionID)
+            if !ClaudeCodeLauncher.supportsEffort(model: models[modelSelectedIndex]) {
+                coordinator.setEffort(nil, for: sessionID)
+            }
+        } else if sessionPaneShowsThinking {
+            let index = modelSelectedIndex - models.count
+            let efforts = ClaudeCodeLauncher.effortOptions
+            if index < efforts.count {
+                coordinator.setEffort(efforts[index], for: sessionID)
+            }
+        }
+    }
+
     /// Shrink the window back before hiding so the autosaved frame (and next
     /// open) never includes a side pane's width.
     private func collapseSidePanes() {
-        if terminalVisible || diffVisible, let panel = conversationPanel {
+        if terminalVisible || diffVisible || modelPaneVisible, let panel = conversationPanel {
             shrinkSideSlot(panel)
         }
         terminalVisible = false
         diffVisible = false
+        modelPaneVisible = false
     }
 
     private static func joined(_ base: String, _ addition: String) -> String {
@@ -446,20 +515,6 @@ final class OverlayController: ObservableObject {
         // The thinking section may have appeared/disappeared; keep the
         // highlight in range.
         modelSelectedIndex = min(modelSelectedIndex, modelPickerRowCount - 1)
-    }
-
-    /// ⌘M in the conversation: switch the open session's model live. Cycles
-    /// concrete aliases only — a live session can't return to "CLI default".
-    private func cycleSessionModel() {
-        guard let sessionID = openSessionID, let meta = store.session(id: sessionID) else { return }
-        let options = ClaudeCodeLauncher.modelOptions.compactMap { $0 }
-        let next: String
-        if let current = meta.model, let index = options.firstIndex(of: current) {
-            next = options[(index + 1) % options.count]
-        } else {
-            next = options[0]
-        }
-        coordinator.setModel(next, for: sessionID)
     }
 
     // MARK: - Recent projects
@@ -853,10 +908,41 @@ final class OverlayController: ObservableObject {
                 toggleDiff()
                 return true
             }
+            if event.modifierFlags.contains(.command), !event.modifierFlags.contains(.shift),
+               event.charactersIgnoringModifiers?.lowercased() == "m" {
+                toggleModelPane()
+                return true
+            }
             // A focused terminal gets raw keys — Escape/Tab/Return belong to
             // the shell and TUI apps inside it, not the overlay.
             if TerminalCache.isTerminalResponder(conversationPanel?.firstResponder) {
                 return false
+            }
+            // While the model pane is open it is modal, using the same keys
+            // as the pill's model picker: E/D or arrows navigate, Space
+            // applies and stays open, Return applies and closes.
+            if modelPaneVisible {
+                switch event.keyCode {
+                case Key.up: moveSessionModelSelection(-1); return true
+                case Key.down: moveSessionModelSelection(1); return true
+                case Key.returnKey:
+                    applySessionModelSelection()
+                    toggleModelPane() // close + refocus composer
+                    return true
+                case Key.escape:
+                    toggleModelPane()
+                    return true
+                default:
+                    if !event.modifierFlags.contains(.command), let c = typedCharacter(event) {
+                        switch c.lowercased() {
+                        case "e": moveSessionModelSelection(-1)
+                        case "d": moveSessionModelSelection(1)
+                        case " ": applySessionModelSelection()
+                        default: break
+                        }
+                        return true // swallow typing while the pane is open
+                    }
+                }
             }
             // ⌃C stops the in-flight agent turn (composer focus only — in
             // the terminal pane ⌃C belongs to the shell, handled above).
@@ -877,10 +963,6 @@ final class OverlayController: ObservableObject {
                 if c == "y" || c == "n", let sessionID = openSessionID,
                    let request = coordinator.pendingPermissions(for: sessionID).first {
                     coordinator.respondToPermission(sessionID: sessionID, requestID: request.id, allow: c == "y")
-                    return true
-                }
-                if c == "m" {
-                    cycleSessionModel()
                     return true
                 }
                 return handleEditingCommand(event)

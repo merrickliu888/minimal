@@ -37,6 +37,11 @@ struct ConversationView: View {
                     .frame(width: 424)
                     .frame(maxHeight: .infinity)
                     .overlayCard(cornerRadius: 14)
+            } else if controller.modelPaneVisible {
+                SessionModelPane()
+                    .frame(width: 424)
+                    .frame(maxHeight: .infinity)
+                    .overlayCard(cornerRadius: 14)
             }
         }
         .padding(24)
@@ -72,6 +77,14 @@ struct ConversationView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(WindowDragArea())
+    }
+
+    /// "fable · high" — thinking level shown whenever the model supports one,
+    /// mirroring the prompt pill's chip.
+    private func sessionModelDisplay(_ meta: AgentSessionMeta) -> String {
+        let model = meta.model ?? "default"
+        guard ClaudeCodeLauncher.supportsEffort(model: meta.model) else { return model }
+        return "\(model) · \(meta.effort ?? "default")"
     }
 
     @ViewBuilder
@@ -168,7 +181,7 @@ struct ConversationView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "cpu")
                             .font(.system(size: 9))
-                        Text(meta.model ?? "default")
+                        Text(sessionModelDisplay(meta))
                             .font(.system(size: 10, design: .monospaced))
                     }
                     .foregroundStyle(meta.model == nil ? Theme.textSecondary : Theme.accent)

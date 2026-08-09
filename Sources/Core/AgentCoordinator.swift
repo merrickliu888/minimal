@@ -113,6 +113,12 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
         liveRuns[sessionID]?.interrupt()
     }
 
+    /// Persist a session's thinking level. There is no live control for it —
+    /// it's a launch flag, applied when the session next restarts/resumes.
+    func setEffort(_ effort: String?, for sessionID: UUID) {
+        store.update(id: sessionID) { $0.effort = effort }
+    }
+
     func pendingPermissions(for sessionID: UUID) -> [PermissionRequest] {
         liveRuns[sessionID]?.pendingPermissions ?? []
     }
