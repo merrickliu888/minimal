@@ -173,6 +173,9 @@ final class ClaudeCodeRun: AgentRun {
     /// True between sending a user message and receiving the turn's result.
     private var turnInFlight = false
     private var terminatedByUs = false
+    /// Set while a user-requested interrupt is pending, so the aborted turn's
+    /// error result reads as "interrupted", not "failed".
+    private var interruptRequested = false
 
     init(sessionID: UUID, executable: String, workingDirectory: String, model: String?, resumeProviderSessionID: String?) {
         self.sessionID = sessionID
@@ -226,6 +229,15 @@ final class ClaudeCodeRun: AgentRun {
             requestID: UUID().uuidString.lowercased(), model: model
         ) else { return }
         writeLine(line)
+    }
+
+    func interrupt() {
+        guard turnInFlight,
+              let line = StreamJSON.encodeInterrupt(requestID: UUID().uuidString.lowercased())
+        else { return }
+        interruptRequested = true
+        writeLine(line)
+        delegate?.agentRun(self, didChangeState: .running, detail: "Stopping…")
     }
 
     func respondToPermission(requestID: String, allow: Bool) {
@@ -288,7 +300,13 @@ final class ClaudeCodeRun: AgentRun {
 
         case .turnEnded(let isError, let resultText):
             turnInFlight = false
-            if isError {
+            if interruptRequested {
+                // The aborted turn reports as an error result; that's the
+                // user's stop, not a failure.
+                interruptRequested = false
+                delegate?.agentRun(self, didAppend: ChatMessage(role: .system, text: "Interrupted."))
+                delegate?.agentRun(self, didChangeState: .needsInput, detail: "Interrupted — awaiting your reply")
+            } else if isError {
                 let detail = resultText ?? "Agent run failed"
                 delegate?.agentRun(self, didAppend: ChatMessage(role: .error, text: detail))
                 delegate?.agentRun(self, didChangeState: .failed, detail: detail)

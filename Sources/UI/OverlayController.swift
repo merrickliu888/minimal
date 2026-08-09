@@ -26,6 +26,10 @@ final class OverlayController: ObservableObject {
         didSet { UserDefaults.standard.set(draftModel, forKey: Self.pickedModelKey) }
     }
     private static let pickedModelKey = "agentPickedModel"
+    // Project picker (⌘P).
+    @Published var projectSelectedIndex: Int = 0
+    @Published private(set) var recentProjects: [String] = []
+    private static let recentProjectsKey = "recentProjects"
     // Management panel.
     @Published var selectedIndex: Int = 0
     @Published var confirmingArchiveID: UUID?
@@ -80,6 +84,7 @@ final class OverlayController: ObservableObject {
            ClaudeCodeLauncher.modelOptions.contains(savedModel) {
             draftModel = savedModel
         }
+        loadRecentProjects()
 
         // Live-mirror transcription into whichever field is listening.
         transcriber.$partialText
@@ -211,6 +216,25 @@ final class OverlayController: ObservableObject {
             stopComposerTranscription()
             collapseSidePanes()
             openSessionID = nil
+
+        case .showProjectPicker:
+            projectSelectedIndex = 0
+
+        case .projectPrevious:
+            moveProjectSelection(-1)
+
+        case .projectNext:
+            moveProjectSelection(1)
+
+        case .chooseProject:
+            if projectSelectedIndex < recentProjects.count {
+                let path = recentProjects[projectSelectedIndex]
+                draftWorkingDirectory = path
+                addRecentProject(path)
+            } else {
+                // The trailing "Add new project…" row.
+                pickWorkingDirectory()
+            }
 
         case .toggleComposerTranscription:
             if composerTranscribing {
@@ -349,6 +373,7 @@ final class OverlayController: ObservableObject {
             mode = .hidden
             return
         }
+        addRecentProject(draftWorkingDirectory ?? coordinator.defaultWorkingDirectory)
         openSessionID = coordinator.startAgent(
             prompt: prompt, workingDirectory: draftWorkingDirectory, model: draftModel
         )
@@ -382,6 +407,38 @@ final class OverlayController: ObservableObject {
         coordinator.setModel(next, for: sessionID)
     }
 
+    // MARK: - Recent projects
+
+    private func loadRecentProjects() {
+        var projects = UserDefaults.standard.stringArray(forKey: Self.recentProjectsKey) ?? []
+        if projects.isEmpty {
+            // First run of this feature: seed from past sessions' directories.
+            var seen = Set<String>()
+            for session in store.sessions.sorted(by: { $0.updatedAt > $1.updatedAt })
+            where seen.insert(session.workingDirectory).inserted {
+                projects.append(session.workingDirectory)
+            }
+        }
+        recentProjects = projects.filter { path in
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
+        }
+        UserDefaults.standard.set(recentProjects, forKey: Self.recentProjectsKey)
+    }
+
+    /// Record a project use: move-to-front, dedupe, cap.
+    func addRecentProject(_ path: String) {
+        var projects = recentProjects.filter { $0 != path }
+        projects.insert(path, at: 0)
+        recentProjects = Array(projects.prefix(12))
+        UserDefaults.standard.set(recentProjects, forKey: Self.recentProjectsKey)
+    }
+
+    private func moveProjectSelection(_ delta: Int) {
+        let count = recentProjects.count + 1 // + "Add new project…"
+        projectSelectedIndex = (projectSelectedIndex + delta + count) % count
+    }
+
     /// Display string for the pill: the directory the next agent will use.
     var pillWorkingDirectoryDisplay: String {
         ((draftWorkingDirectory ?? coordinator.defaultWorkingDirectory) as NSString).abbreviatingWithTildeInPath
@@ -408,6 +465,7 @@ final class OverlayController: ObservableObject {
         )
         if panel.runModal() == .OK, let url = panel.url {
             draftWorkingDirectory = url.path
+            addRecentProject(url.path)
         }
         NSApp.deactivate()
 
@@ -462,11 +520,11 @@ final class OverlayController: ObservableObject {
             presentPillPanel(on: screen)
             installKeyMonitorIfNeeded()
 
-        case .management:
-            // The pill and the management card share one panel, stacked
-            // vertically — which of them "has focus" is driven by `mode`,
-            // so the panel just needs to be key. Drop the field's caret so
-            // it doesn't look editable while the card is navigated.
+        case .management, .projectPicker:
+            // The pill and the management/projects card share one panel,
+            // stacked vertically — which of them "has focus" is driven by
+            // `mode`, so the panel just needs to be key. Drop the field's
+            // caret so it doesn't look editable while the card is navigated.
             let screen = screenForOverlay()
             conversationPanel?.dismiss()
             presentPillPanel(on: screen)
@@ -628,6 +686,11 @@ final class OverlayController: ObservableObject {
         if let keyWindow = NSApp.keyWindow, !(keyWindow is OverlayPanel) {
             return false
         }
+        // ⌘, opens Settings from any overlay mode.
+        if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "," {
+            onRequestSettings()
+            return true
+        }
         switch mode {
         case .hidden:
             return false
@@ -650,7 +713,7 @@ final class OverlayController: ObservableObject {
                         feed(.voiceKey)
                         return true
                     case "p":
-                        pickWorkingDirectory()
+                        feed(.projectKey)
                         return true
                     case "m":
                         cycleModel()
@@ -681,6 +744,24 @@ final class OverlayController: ObservableObject {
 
             }
 
+        case .projectPicker:
+            if event.modifierFlags.contains(.command),
+               event.charactersIgnoringModifiers?.lowercased() == "p" {
+                feed(.projectKey) // toggle closed
+                return true
+            }
+            switch event.keyCode {
+            case Key.escape: feed(.escape); return true
+            case Key.tab: feed(.tab); return true
+            case Key.up: feed(.navUp); return true
+            case Key.down: feed(.navDown); return true
+            case Key.right, Key.returnKey: feed(.navOpen); return true
+            default:
+                if let c = typedCharacter(event) { feed(.character(c)) }
+                return true // swallow everything else; the picker has no text input
+
+            }
+
         case .conversation:
             // Pane toggles work regardless of which pane has focus — the
             // shell never sees ⌃` or ⌘⇧D.
@@ -697,6 +778,14 @@ final class OverlayController: ObservableObject {
             // the shell and TUI apps inside it, not the overlay.
             if TerminalCache.isTerminalResponder(conversationPanel?.firstResponder) {
                 return false
+            }
+            // ⌃C stops the in-flight agent turn (composer focus only — in
+            // the terminal pane ⌃C belongs to the shell, handled above).
+            if event.modifierFlags.contains(.control),
+               event.charactersIgnoringModifiers?.lowercased() == "c",
+               let sessionID = openSessionID {
+                coordinator.interrupt(sessionID: sessionID)
+                return true
             }
             if event.keyCode == Key.escape { feed(.escape); return true }
             if event.keyCode == Key.tab { feed(.tab); return true }

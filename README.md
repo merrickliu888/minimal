@@ -41,13 +41,14 @@ Global:
 |---|---|
 | ⌥Space | Toggle the overlay (opens in prompt-entry mode, text input focused; closes from any mode) |
 | ⌥Tab | Open overlay in agent-management mode |
+| ⌘, | Open Settings (while the overlay is visible) |
 
 Prompt entry (bottom pill):
 
 | Key | Action |
 |---|---|
 | ⌘D | Toggle voice transcription (appends to typed text) |
-| ⌘P | Choose the directory the agent works in (shown bottom-right of the pill; ⌘⇧G in the picker accepts a typed path) |
+| ⌘P | Open the Projects picker in place of the agents card: recent directories navigated with E/D/arrows, Space/⏎ selects, and an "Add new project…" row opens the system directory picker. Esc or ⌘P closes it |
 | ⌘M | Cycle the agent's model (default → fable → opus → sonnet → haiku) |
 | any typing key | While listening: stop transcription, keep typing |
 | ⏎ | Submit prompt, start agent, open its conversation |
@@ -58,9 +59,9 @@ Agent management (top-left panel):
 
 | Key | Action |
 |---|---|
-| ↑ / W | Select previous agent |
-| ↓ / S | Select next agent |
-| → / D / ⏎ | Open selected agent |
+| ↑ / E | Select previous agent |
+| ↓ / D | Select next agent |
+| → / Space / ⏎ | Open selected agent |
 | ← / A | Begin archive confirmation (**A** confirms, **esc**/**D** cancels) |
 | ⇥ | Cycle focus back to the prompt field (draft preserved) |
 | esc | Close the overlay |
@@ -74,6 +75,7 @@ Open agent (conversation):
 | ⇧⏎ | Newline |
 | ⌘D | Toggle voice input into the composer |
 | ⌘Y / ⌘N | Allow / deny a pending tool approval |
+| ⌃C | Interrupt the running turn (session stays alive) |
 | ⌘M | Switch the session's model live (cycles fable → opus → sonnet → haiku; shown in the header) |
 | ⌃` | Toggle a shell terminal pane beside the conversation (opens in the agent's working directory; keeps shell state per session) |
 | ⌘⇧D | Toggle a diff pane showing uncommitted changes in the agent's directory (shares the side slot with the terminal) |

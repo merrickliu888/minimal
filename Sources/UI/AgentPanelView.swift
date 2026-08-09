@@ -160,8 +160,8 @@ struct AgentPanelView: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            KeyHint(symbol: "W/S", label: "navigate")
-            KeyHint(symbol: "D", label: "open")
+            KeyHint(symbol: "E/D", label: "navigate")
+            KeyHint(symbol: "␣", label: "open")
             KeyHint(symbol: "A", label: "archive")
             Spacer()
         }

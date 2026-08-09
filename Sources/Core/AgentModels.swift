@@ -100,6 +100,8 @@ protocol AgentRun: AnyObject {
     func send(text: String)
     /// Switch the model for subsequent turns of this live conversation.
     func setModel(_ model: String)
+    /// Abort the in-flight turn; the session stays alive for follow-ups.
+    func interrupt()
     /// Answer a pending tool-approval request.
     func respondToPermission(requestID: String, allow: Bool)
     /// Stop the underlying process. The session may later be resumed.

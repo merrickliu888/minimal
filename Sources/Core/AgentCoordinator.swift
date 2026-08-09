@@ -105,6 +105,11 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
         liveRuns[sessionID]?.setModel(model)
     }
 
+    /// Stop the in-flight turn; the session stays alive for follow-ups.
+    func interrupt(sessionID: UUID) {
+        liveRuns[sessionID]?.interrupt()
+    }
+
     func pendingPermissions(for sessionID: UUID) -> [PermissionRequest] {
         liveRuns[sessionID]?.pendingPermissions ?? []
     }

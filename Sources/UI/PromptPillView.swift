@@ -22,7 +22,11 @@ struct PromptPillView: View {
     var body: some View {
         VStack(spacing: 12) {
             Spacer()
-            AgentPanelView()
+            if controller.mode == .projectPicker {
+                ProjectPickerView()
+            } else {
+                AgentPanelView()
+            }
             Group {
                 if isTranscribing {
                     listeningPill
@@ -96,7 +100,7 @@ struct PromptPillView: View {
                 if isFocused {
                     KeyHint(symbol: "⏎", label: "start agent")
                     KeyHint(symbol: "⌘D", label: "voice")
-                    KeyHint(symbol: "⌘P", label: "directory")
+                    KeyHint(symbol: "⌘P", label: "project")
                     KeyHint(symbol: "⌘M", label: "model")
                 } else {
                     KeyHint(symbol: "⇥", label: "focus")

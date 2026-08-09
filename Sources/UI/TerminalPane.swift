@@ -94,8 +94,19 @@ struct TerminalPane: NSViewRepresentable {
     func makeNSView(context: Context) -> LocalProcessTerminalView { terminalView }
     func updateNSView(_ view: LocalProcessTerminalView, context: Context) {
         // Re-assert on every update: layout passes can re-run SwiftTerm's
-        // setup, which re-shows the scroller.
+        // setup (re-showing the scroller), and the system appearance may
+        // have changed since the cached view was created — the padding
+        // around the pane re-resolves each render, so the terminal's own
+        // colors must follow the same source or the surfaces mismatch.
         TerminalCache.hideScroller(in: view)
-        view.layer?.backgroundColor = TerminalCache.resolvedBackground().cgColor
+        let background = TerminalCache.resolvedBackground()
+        if view.nativeBackgroundColor != background {
+            view.nativeBackgroundColor = background
+            NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+                view.nativeForegroundColor = NSColor.textColor
+                    .usingColorSpace(.sRGB) ?? view.nativeForegroundColor
+            }
+        }
+        view.layer?.backgroundColor = background.cgColor
     }
 }

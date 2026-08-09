@@ -149,6 +149,15 @@ enum StreamJSON {
         ])
     }
 
+    /// Interrupt the in-flight turn (the CLI aborts it and emits a result).
+    static func encodeInterrupt(requestID: String) -> String? {
+        serializeLine([
+            "type": "control_request",
+            "request_id": requestID,
+            "request": ["subtype": "interrupt"],
+        ])
+    }
+
     private static func serializeLine(_ payload: [String: Any]) -> String? {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let line = String(data: data, encoding: .utf8)

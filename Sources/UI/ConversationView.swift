@@ -158,6 +158,9 @@ struct ConversationView: View {
                 KeyHint(symbol: "⇧⏎", label: "newline")
                 KeyHint(symbol: "⌘D", label: controller.composerTranscribing ? "stop voice" : "voice")
                 KeyHint(symbol: "⌘M", label: "model")
+                if meta?.state == .running {
+                    KeyHint(symbol: "⌃C", label: "stop")
+                }
                 KeyHint(symbol: "⌃`", label: controller.terminalVisible ? "hide terminal" : "terminal")
                 KeyHint(symbol: "⌘⇧D", label: controller.diffVisible ? "hide diff" : "diff")
                 Spacer()

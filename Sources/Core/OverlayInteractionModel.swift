@@ -11,6 +11,8 @@ enum OverlayMode: Equatable {
     case promptEntry(transcribing: Bool)
     /// Agent panel above the pill. `confirmingArchive` == awaiting A / Escape.
     case management(confirmingArchive: Bool)
+    /// Recent-projects picker shown in place of the agent panel (⌘P).
+    case projectPicker
     /// Full conversation overlay for one agent.
     case conversation
 }
@@ -19,7 +21,8 @@ enum OverlayMode: Equatable {
 enum OverlayInput: Equatable {
     case promptHotkey       // Option+Space (global): toggles the overlay
     case managementHotkey   // Option+Tab (global)
-    case voiceKey           // Cmd+V while the overlay is open: toggles voice
+    case voiceKey           // Cmd+D while the overlay is open: toggles voice
+    case projectKey         // Cmd+P in prompt entry: toggles the project picker
     case escape
     case returnKey
     case tab
@@ -53,6 +56,12 @@ enum OverlayCommand: Equatable {
     case closeConversation
     /// Toggle voice input inside the conversation composer.
     case toggleComposerTranscription
+    // Project picker.
+    case showProjectPicker
+    case projectPrevious
+    case projectNext
+    /// Apply the highlighted project (or open the add-new file picker).
+    case chooseProject
 }
 
 struct OverlayInteractionModel {
@@ -114,6 +123,42 @@ struct OverlayInteractionModel {
                 return transcribing
                     ? [.stopTranscription, .showManagement]
                     : [.showManagement]
+            case .projectKey:
+                mode = .projectPicker
+                return transcribing
+                    ? [.stopTranscription, .showProjectPicker]
+                    : [.showProjectPicker]
+            default:
+                return []
+            }
+
+        case .projectPicker:
+            switch input {
+            case .navUp:
+                return [.projectPrevious]
+            case .navDown:
+                return [.projectNext]
+            case .character(let c):
+                switch c.lowercased() {
+                case "e": return [.projectPrevious]
+                case "d": return [.projectNext]
+                case " ":
+                    mode = .promptEntry(transcribing: false)
+                    return [.chooseProject, .beginEditing(seed: nil)]
+                default: return []
+                }
+            case .navOpen, .returnKey:
+                mode = .promptEntry(transcribing: false)
+                return [.chooseProject, .beginEditing(seed: nil)]
+            case .escape, .tab, .projectKey:
+                mode = .promptEntry(transcribing: false)
+                return [.beginEditing(seed: nil)]
+            case .promptHotkey:
+                mode = .hidden
+                return [.hideOverlay]
+            case .managementHotkey:
+                mode = .management(confirmingArchive: false)
+                return [.showManagement]
             default:
                 return []
             }
@@ -147,9 +192,9 @@ struct OverlayInteractionModel {
                 return [.beginArchiveConfirmation]
             case .character(let c):
                 switch c.lowercased() {
-                case "w": return [.selectPrevious]
-                case "s": return [.selectNext]
-                case "d":
+                case "e": return [.selectPrevious]
+                case "d": return [.selectNext]
+                case " ":
                     mode = .conversation
                     return [.openSelected]
                 case "a":

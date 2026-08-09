@@ -158,7 +158,7 @@ func testOverlayToggle() {
     expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes from management")
 
     _ = m.handle(.managementHotkey)
-    _ = m.handle(.character("d")) // needs a session in reality; model still transitions
+    _ = m.handle(.character(" ")) // needs a session in reality; model still transitions
     expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes from conversation")
     expectEqual(m.mode, .hidden, "hidden after closing conversation")
 }
@@ -168,12 +168,12 @@ func testManagementNavigation() {
     _ = m.handle(.managementHotkey)
     expectEqual(m.mode, .management(confirmingArchive: false), "opt+tab opens management")
 
-    expectEqual(m.handle(.character("w")), [.selectPrevious], "w selects previous")
-    expectEqual(m.handle(.character("s")), [.selectNext], "s selects next")
+    expectEqual(m.handle(.character("e")), [.selectPrevious], "e selects previous")
+    expectEqual(m.handle(.character("d")), [.selectNext], "d selects next")
     expectEqual(m.handle(.navUp), [.selectPrevious], "up arrow")
     expectEqual(m.handle(.navDown), [.selectNext], "down arrow")
 
-    expectEqual(m.handle(.character("d")), [.openSelected], "d opens agent")
+    expectEqual(m.handle(.character(" ")), [.openSelected], "space opens agent")
     expectEqual(m.mode, .conversation, "conversation mode")
 
     expectEqual(m.handle(.escape), [.closeConversation, .showManagement], "escape closes conversation")
@@ -202,13 +202,13 @@ func testArchiveConfirmation() {
 
     // W/S ignored while confirming
     _ = m.handle(.character("a"))
-    expectEqual(m.handle(.character("w")), [], "nav ignored while confirming")
+    expectEqual(m.handle(.character("e")), [], "nav ignored while confirming")
 }
 
 func testConversationMode() {
     var m = OverlayInteractionModel()
     _ = m.handle(.managementHotkey)
-    _ = m.handle(.character("d"))
+    _ = m.handle(.character(" "))
     expectEqual(m.mode, .conversation, "in conversation")
 
     expectEqual(m.handle(.voiceKey), [.toggleComposerTranscription], "cmd+v toggles composer voice")
@@ -217,10 +217,42 @@ func testConversationMode() {
     // Tab exits the conversation back to the management overlay
     expectEqual(m.handle(.tab), [.closeConversation, .showManagement], "tab exits conversation")
     expectEqual(m.mode, .management(confirmingArchive: false), "management after tab")
-    _ = m.handle(.character("d")) // back into conversation for remaining checks
+    _ = m.handle(.character(" ")) // back into conversation for remaining checks
 
     // Typing keys are not interpreted as commands in conversation mode
     expectEqual(m.handle(.character("a")), [], "letters not interpreted in conversation")
+}
+
+func testProjectPickerFlow() {
+    var m = OverlayInteractionModel()
+    _ = m.handle(.promptHotkey)
+
+    // ⌘P opens the picker in place of the agents card.
+    expectEqual(m.handle(.projectKey), [.showProjectPicker], "cmd+p opens picker")
+    expectEqual(m.mode, .projectPicker, "picker mode")
+
+    expectEqual(m.handle(.character("e")), [.projectPrevious], "e navigates up")
+    expectEqual(m.handle(.character("d")), [.projectNext], "d navigates down")
+    expectEqual(m.handle(.navUp), [.projectPrevious], "up arrow")
+    expectEqual(m.handle(.navDown), [.projectNext], "down arrow")
+
+    // Space selects and returns to the prompt field.
+    expectEqual(m.handle(.character(" ")), [.chooseProject, .beginEditing(seed: nil)], "space chooses project")
+    expectEqual(m.mode, .promptEntry(transcribing: false), "back to prompt entry")
+
+    // Return also selects; Escape/⌘P close without choosing.
+    _ = m.handle(.projectKey)
+    expectEqual(m.handle(.returnKey), [.chooseProject, .beginEditing(seed: nil)], "return chooses project")
+    _ = m.handle(.projectKey)
+    expectEqual(m.handle(.escape), [.beginEditing(seed: nil)], "escape closes without choosing")
+    expectEqual(m.mode, .promptEntry(transcribing: false), "prompt entry after escape")
+    _ = m.handle(.projectKey)
+    expectEqual(m.handle(.projectKey), [.beginEditing(seed: nil)], "cmd+p toggles closed")
+
+    // ⌥Space still closes the whole overlay from the picker.
+    _ = m.handle(.projectKey)
+    expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes overlay from picker")
+    expectEqual(m.mode, .hidden, "hidden")
 }
 
 // MARK: - Launcher tests
@@ -373,6 +405,7 @@ struct TestRunner {
         testManagementNavigation()
         testArchiveConfirmation()
         testConversationMode()
+        testProjectPickerFlow()
         testExecutableResolution()
         testArguments()
         testTitleDerivation()
