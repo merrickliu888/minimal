@@ -141,8 +141,16 @@ final class OverlayController: ObservableObject {
 
     // MARK: - Inline @file and /command suggestions
 
+    /// Visible whenever an @/-token is being typed — including with zero
+    /// matches, so the popup shows "no results" instead of vanishing (which
+    /// flashed the management card back in).
     var suggestionPopupVisible: Bool {
-        suggestionField != nil && (!suggestions.isEmpty || suggestionsLoading)
+        suggestionField != nil
+    }
+
+    /// What the active token is asking for, for empty/loading copy.
+    var suggestionKind: InlineToken.Kind? {
+        suggestionToken?.kind
     }
 
     private func suggestionText(for field: SuggestionField) -> String {
@@ -239,7 +247,6 @@ final class OverlayController: ObservableObject {
     private func setSuggestions(_ new: [InlineSuggestion]) {
         suggestions = new
         suggestionIndex = min(suggestionIndex, max(0, new.count - 1))
-        if new.isEmpty && !suggestionsLoading { suggestionField = nil }
     }
 
     func moveSuggestion(_ delta: Int) {

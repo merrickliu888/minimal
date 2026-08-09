@@ -12,11 +12,17 @@ struct SuggestionPopupView: View {
         let content = VStack(alignment: .leading, spacing: 2) {
             if controller.suggestions.isEmpty {
                 HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text(loadingLabel)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.textSecondary)
+                    if controller.suggestionsLoading {
+                        ProgressView().controlSize(.small)
+                        Text("Loading suggestions…")
+                    } else {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11))
+                        Text(noResultsLabel)
+                    }
                 }
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textSecondary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
             } else {
@@ -44,9 +50,11 @@ struct SuggestionPopupView: View {
         }
     }
 
-    private var loadingLabel: String {
-        controller.suggestions.isEmpty && controller.suggestionsLoading
-            ? "Loading suggestions…" : ""
+    private var noResultsLabel: String {
+        switch controller.suggestionKind {
+        case .slashCommand: return "No matching commands"
+        case .fileMention, nil: return "No matching files"
+        }
     }
 
     @ViewBuilder
