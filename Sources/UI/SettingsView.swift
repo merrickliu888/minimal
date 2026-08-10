@@ -51,16 +51,6 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             }
 
-            GroupBox("Agent defaults") {
-                LabeledContent("Working directory") {
-                    TextField(NSHomeDirectory(), text: $settingsModel.workingDirectory)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11, design: .monospaced))
-                        .onSubmit { settingsModel.saveWorkingDirectory() }
-                }
-                .padding(.vertical, 4)
-            }
-
             HStack {
                 if permissions.allGranted && settingsModel.hasConnectedProvider {
                     Label("Ready — press ⌥Space anywhere to start an agent, ⌥Tab to manage agents.", systemImage: "checkmark.circle.fill")
@@ -167,7 +157,6 @@ final class SettingsModel: ObservableObject {
     @Published var checking = false
     @Published var claudeConfiguredPath: String
     @Published var codexConfiguredPath: String
-    @Published var workingDirectory: String
 
     private let providers: [AgentProvider]
 
@@ -175,7 +164,6 @@ final class SettingsModel: ObservableObject {
         self.providers = providers
         claudeConfiguredPath = UserDefaults.standard.string(forKey: ClaudeCodeProvider.configuredPathKey) ?? ""
         codexConfiguredPath = UserDefaults.standard.string(forKey: CodexProvider.configuredPathKey) ?? ""
-        workingDirectory = UserDefaults.standard.string(forKey: AgentCoordinator.workingDirectoryKey) ?? ""
     }
 
     var hasConnectedProvider: Bool {
@@ -210,15 +198,6 @@ final class SettingsModel: ObservableObject {
             UserDefaults.standard.removeObject(forKey: key)
         } else {
             UserDefaults.standard.set(trimmed, forKey: key)
-        }
-    }
-
-    func saveWorkingDirectory() {
-        let trimmed = workingDirectory.trimmingCharacters(in: .whitespaces)
-        if trimmed.isEmpty {
-            UserDefaults.standard.removeObject(forKey: AgentCoordinator.workingDirectoryKey)
-        } else {
-            UserDefaults.standard.set((trimmed as NSString).expandingTildeInPath, forKey: AgentCoordinator.workingDirectoryKey)
         }
     }
 }
