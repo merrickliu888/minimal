@@ -1,4 +1,7 @@
-# Minimal
+<div align="center">
+  <img src="Assets/minimal-logo-transparent.png" alt="minimal-logo" width="75">  
+  <h1>Minimal</h1>
+</div>
 
 A macOS overlay for creating and managing AI coding agents without leaving
 whatever you're doing — a system-wide HUD in the spirit of JARVIS, with the
