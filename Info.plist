@@ -10,6 +10,8 @@
 	<string>Minimal</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.minimal.app</string>
+	<key>CFBundleIconFile</key>
+	<string>Minimal.icns</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
