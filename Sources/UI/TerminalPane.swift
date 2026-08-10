@@ -15,17 +15,15 @@ final class TerminalCache {
         if let existing = views[sessionID] { return existing }
         let view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 424, height: 560))
         view.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        // SwiftTerm pushes this color into the terminal's own color model,
-        // dropping alpha (so .clear renders as black) — transparency is not
-        // an option. Use a solid appearance-resolved gray; the SwiftUI
-        // padding around the pane uses the same color so they read as one
-        // surface.
-        view.nativeBackgroundColor = Self.resolvedBackground()
+        // Keep SwiftTerm transparent so the same overlayCard material used by
+        // the agent viewer is the only surface rendered behind both panes.
+        let background = NSColor.clear
+        view.nativeBackgroundColor = background
         // SwiftTerm syncs its backing layer's color only at setup, before we
         // changed the background — left alone it stays black and shows
         // through whenever drawing lags layout (first present, resizes).
-        view.layer?.backgroundColor = Self.resolvedBackground().cgColor
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+        view.layer?.backgroundColor = background.cgColor
+        view.effectiveAppearance.performAsCurrentDrawingAppearance {
             view.nativeForegroundColor = NSColor.textColor
                 .usingColorSpace(.sRGB) ?? NSColor.white
         }
@@ -52,18 +50,6 @@ final class TerminalCache {
 
     func terminate(sessionID: UUID) {
         views.removeValue(forKey: sessionID)?.process.terminate()
-    }
-
-    /// The shared surface color for the terminal card: the system's
-    /// recessed-surface gray, lightened slightly, resolved for the current
-    /// appearance (SwiftTerm needs a concrete RGB color).
-    static func resolvedBackground() -> NSColor {
-        var color = NSColor(white: 0.22, alpha: 1)
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            let base = NSColor.underPageBackgroundColor.usingColorSpace(.sRGB) ?? color
-            color = base.blended(withFraction: 0.10, of: .white)?.usingColorSpace(.sRGB) ?? base
-        }
-        return color
     }
 
     static func hideScroller(in view: NSView) {
@@ -99,10 +85,10 @@ struct TerminalPane: NSViewRepresentable {
         // around the pane re-resolves each render, so the terminal's own
         // colors must follow the same source or the surfaces mismatch.
         TerminalCache.hideScroller(in: view)
-        let background = TerminalCache.resolvedBackground()
+        let background = NSColor.clear
         if view.nativeBackgroundColor != background {
             view.nativeBackgroundColor = background
-            NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            view.effectiveAppearance.performAsCurrentDrawingAppearance {
                 view.nativeForegroundColor = NSColor.textColor
                     .usingColorSpace(.sRGB) ?? view.nativeForegroundColor
             }

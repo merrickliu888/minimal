@@ -32,7 +32,6 @@ struct ConversationView: View {
             if controller.terminalVisible, let terminal = controller.activeTerminal {
                 TerminalPane(terminalView: terminal)
                     .padding(12)
-                    .background(Color(nsColor: TerminalCache.resolvedBackground()))
                     .frame(width: 424)
                     .frame(maxHeight: .infinity)
                     .overlayCard(cornerRadius: 14)
