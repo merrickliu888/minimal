@@ -4,7 +4,7 @@ import SwiftUI
 /// prompt pill (as its own card) or above the conversation composer
 /// (embedded). Rows come pre-filtered and pre-ranked from the controller.
 struct SuggestionPopupView: View {
-    @EnvironmentObject var controller: OverlayController
+    @EnvironmentObject var controller: MinimalController
     /// Embedded (conversation composer) skips the card chrome.
     var embedded = false
 

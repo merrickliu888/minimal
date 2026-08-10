@@ -4,7 +4,7 @@ import SwiftUI
 /// One flat keyboard list across both sections: Space applies a row and
 /// stays open (so both can be set in one visit), Return applies and closes.
 struct ModelPickerView: View {
-    @EnvironmentObject var controller: OverlayController
+    @EnvironmentObject var controller: MinimalController
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

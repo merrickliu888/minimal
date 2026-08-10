@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "Overlay",
+    name: "Minimal",
     platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/gonzalezreal/textual", from: "0.5.0"),
@@ -10,7 +10,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "Overlay",
+            name: "Minimal",
             dependencies: [
                 .product(name: "Textual", package: "textual"),
                 .product(name: "SwiftTerm", package: "SwiftTerm"),

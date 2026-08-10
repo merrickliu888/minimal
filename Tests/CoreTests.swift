@@ -97,7 +97,7 @@ func testToolSummaries() {
 // MARK: - Interaction model tests
 
 func testPromptEntryFlow() {
-    var m = OverlayInteractionModel()
+    var m = MinimalInteractionModel()
     // Text entry is the default mode.
     expectEqual(m.handle(.promptHotkey), [.showPromptPill, .beginEditing(seed: nil)], "opt+space opens pill in text mode")
     expectEqual(m.mode, .promptEntry(transcribing: false), "editing state by default")
@@ -123,14 +123,14 @@ func testPromptEntryFlow() {
 }
 
 func testPromptEscapeAndTab() {
-    var m = OverlayInteractionModel()
+    var m = MinimalInteractionModel()
     _ = m.handle(.promptHotkey)
-    expectEqual(m.handle(.escape), [.hideOverlay], "escape closes from text mode")
+    expectEqual(m.handle(.escape), [.hideMinimal], "escape closes from text mode")
     expectEqual(m.mode, .hidden, "hidden after escape")
 
     _ = m.handle(.promptHotkey)
     _ = m.handle(.voiceKey) // voice on
-    expectEqual(m.handle(.escape), [.stopTranscription, .hideOverlay], "escape closes while transcribing")
+    expectEqual(m.handle(.escape), [.stopTranscription, .hideMinimal], "escape closes while transcribing")
     expectEqual(m.mode, .hidden, "hidden after escape from voice")
 
     _ = m.handle(.promptHotkey)
@@ -143,28 +143,28 @@ func testPromptEscapeAndTab() {
     expectEqual(m.mode, .promptEntry(transcribing: false), "editing mode after tab back")
 }
 
-func testOverlayToggle() {
-    var m = OverlayInteractionModel()
+func testMinimalToggle() {
+    var m = MinimalInteractionModel()
     // ⌥Space toggles the overlay from every visible mode.
     _ = m.handle(.promptHotkey)
-    expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes from text mode")
+    expectEqual(m.handle(.promptHotkey), [.hideMinimal], "opt+space closes from text mode")
     expectEqual(m.mode, .hidden, "hidden after toggle")
 
     _ = m.handle(.promptHotkey)
     _ = m.handle(.voiceKey)
-    expectEqual(m.handle(.promptHotkey), [.stopTranscription, .hideOverlay], "opt+space closes while transcribing")
+    expectEqual(m.handle(.promptHotkey), [.stopTranscription, .hideMinimal], "opt+space closes while transcribing")
 
     _ = m.handle(.managementHotkey)
-    expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes from management")
+    expectEqual(m.handle(.promptHotkey), [.hideMinimal], "opt+space closes from management")
 
     _ = m.handle(.managementHotkey)
     _ = m.handle(.character(" ")) // needs a session in reality; model still transitions
-    expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes from conversation")
+    expectEqual(m.handle(.promptHotkey), [.hideMinimal], "opt+space closes from conversation")
     expectEqual(m.mode, .hidden, "hidden after closing conversation")
 }
 
 func testManagementNavigation() {
-    var m = OverlayInteractionModel()
+    var m = MinimalInteractionModel()
     _ = m.handle(.managementHotkey)
     expectEqual(m.mode, .management(confirmingArchive: false), "opt+tab opens management")
 
@@ -181,7 +181,7 @@ func testManagementNavigation() {
 }
 
 func testArchiveConfirmation() {
-    var m = OverlayInteractionModel()
+    var m = MinimalInteractionModel()
     _ = m.handle(.managementHotkey)
 
     expectEqual(m.handle(.character("a")), [.beginArchiveConfirmation], "a begins archive confirm")
@@ -206,7 +206,7 @@ func testArchiveConfirmation() {
 }
 
 func testConversationMode() {
-    var m = OverlayInteractionModel()
+    var m = MinimalInteractionModel()
     _ = m.handle(.managementHotkey)
     _ = m.handle(.character(" "))
     expectEqual(m.mode, .conversation, "in conversation")
@@ -224,7 +224,7 @@ func testConversationMode() {
 }
 
 func testProjectPickerFlow() {
-    var m = OverlayInteractionModel()
+    var m = MinimalInteractionModel()
     _ = m.handle(.promptHotkey)
 
     // ⌘P opens the picker in place of the agents card.
@@ -251,12 +251,12 @@ func testProjectPickerFlow() {
 
     // ⌥Space still closes the whole overlay from the picker.
     _ = m.handle(.projectKey)
-    expectEqual(m.handle(.promptHotkey), [.hideOverlay], "opt+space closes overlay from picker")
+    expectEqual(m.handle(.promptHotkey), [.hideMinimal], "opt+space closes overlay from picker")
     expectEqual(m.mode, .hidden, "hidden")
 }
 
 func testModelPickerFlow() {
-    var m = OverlayInteractionModel()
+    var m = MinimalInteractionModel()
     _ = m.handle(.promptHotkey)
 
     expectEqual(m.handle(.modelKey), [.showModelPicker], "cmd+m opens model picker")
@@ -442,7 +442,7 @@ func testDiffParsing() {
 
 func testSessionStorePersistence() {
     let dir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("overlay-tests-\(UUID().uuidString)")
+        .appendingPathComponent("minimal-tests-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: dir) }
 
     let store = SessionStore(directory: dir)
@@ -472,7 +472,7 @@ func testSessionStorePersistence() {
 
 func testPanelOrdering() {
     let dir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("overlay-tests-\(UUID().uuidString)")
+        .appendingPathComponent("minimal-tests-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: dir) }
     let store = SessionStore(directory: dir)
 
@@ -597,7 +597,7 @@ struct TestRunner {
         testToolSummaries()
         testPromptEntryFlow()
         testPromptEscapeAndTab()
-        testOverlayToggle()
+        testMinimalToggle()
         testManagementNavigation()
         testArchiveConfirmation()
         testConversationMode()

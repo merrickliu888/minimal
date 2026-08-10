@@ -4,7 +4,7 @@ import Textual
 /// Large conversation overlay: the agent's transcript (messages and tool
 /// actions, Claude Code style) plus a composer with voice input.
 struct ConversationView: View {
-    @EnvironmentObject var controller: OverlayController
+    @EnvironmentObject var controller: MinimalController
     @EnvironmentObject var store: SessionStore
     @EnvironmentObject var transcriber: Transcriber
     @FocusState private var composerFocused: Bool

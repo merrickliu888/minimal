@@ -4,7 +4,7 @@ import SwiftUI
 /// the prompt pill (same width), which shows a waveform while listening and
 /// an editable text field once the user types.
 struct PromptPillView: View {
-    @EnvironmentObject var controller: OverlayController
+    @EnvironmentObject var controller: MinimalController
     @EnvironmentObject var transcriber: Transcriber
     @FocusState private var fieldFocused: Bool
 

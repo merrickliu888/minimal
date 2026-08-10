@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>Overlay</string>
+	<string>Minimal</string>
 	<key>CFBundleDisplayName</key>
-	<string>Overlay</string>
+	<string>Minimal</string>
 	<key>CFBundleExecutable</key>
-	<string>Overlay</string>
+	<string>Minimal</string>
 	<key>CFBundleIdentifier</key>
-	<string>dev.overlay.app</string>
+	<string>dev.minimal.app</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -21,8 +21,8 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Overlay needs microphone access to transcribe your voice prompts for AI agents.</string>
+	<string>Minimal needs microphone access to transcribe your voice prompts for AI agents.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Overlay uses speech recognition to turn your voice into agent prompts.</string>
+	<string>Minimal uses speech recognition to turn your voice into agent prompts.</string>
 </dict>
 </plist>

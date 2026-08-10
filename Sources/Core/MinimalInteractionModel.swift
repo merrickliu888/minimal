@@ -4,7 +4,7 @@ import Foundation
 /// against the current mode — never as globally-sniffed single-letter
 /// commands — so the same key can safely mean different things in different
 /// modes (e.g. "a" archives in the panel but types into the composer).
-enum OverlayMode: Equatable {
+enum MinimalMode: Equatable {
     case hidden
     /// Bottom-center prompt pill. `transcribing` == listening to speech;
     /// otherwise the pill is an editable text field.
@@ -20,7 +20,7 @@ enum OverlayMode: Equatable {
 }
 
 /// Normalized input events fed to the interaction model by the UI layer.
-enum OverlayInput: Equatable {
+enum MinimalInput: Equatable {
     case promptHotkey       // Option+Space (global): toggles the overlay
     case managementHotkey   // Option+Tab (global)
     case voiceKey           // Cmd+D while the overlay is open: toggles voice
@@ -40,7 +40,7 @@ enum OverlayInput: Equatable {
 }
 
 /// Side effects the controller must perform after a transition.
-enum OverlayCommand: Equatable {
+enum MinimalCommand: Equatable {
     case showPromptPill
     case startTranscription
     case stopTranscription
@@ -48,7 +48,7 @@ enum OverlayCommand: Equatable {
     /// interrupted transcription and becomes the first typed character.
     case beginEditing(seed: Character?)
     case submitPrompt
-    case hideOverlay
+    case hideMinimal
     case showManagement
     case selectPrevious
     case selectNext
@@ -73,10 +73,10 @@ enum OverlayCommand: Equatable {
     case applyModelSelection
 }
 
-struct OverlayInteractionModel {
-    private(set) var mode: OverlayMode = .hidden
+struct MinimalInteractionModel {
+    private(set) var mode: MinimalMode = .hidden
 
-    mutating func handle(_ input: OverlayInput) -> [OverlayCommand] {
+    mutating func handle(_ input: MinimalInput) -> [MinimalCommand] {
         switch mode {
         case .hidden:
             switch input {
@@ -97,8 +97,8 @@ struct OverlayInteractionModel {
                 // ⌥Space toggles the overlay: pressing it again closes.
                 mode = .hidden
                 return transcribing
-                    ? [.stopTranscription, .hideOverlay]
-                    : [.hideOverlay]
+                    ? [.stopTranscription, .hideMinimal]
+                    : [.hideMinimal]
             case .voiceKey:
                 if transcribing {
                     mode = .promptEntry(transcribing: false)
@@ -120,8 +120,8 @@ struct OverlayInteractionModel {
             case .escape:
                 mode = .hidden
                 return transcribing
-                    ? [.stopTranscription, .hideOverlay]
-                    : [.hideOverlay]
+                    ? [.stopTranscription, .hideMinimal]
+                    : [.hideMinimal]
             case .tab:
                 mode = .management(confirmingArchive: false)
                 return transcribing
@@ -170,7 +170,7 @@ struct OverlayInteractionModel {
                 return [.beginEditing(seed: nil)]
             case .promptHotkey:
                 mode = .hidden
-                return [.hideOverlay]
+                return [.hideMinimal]
             case .managementHotkey:
                 mode = .management(confirmingArchive: false)
                 return [.showManagement]
@@ -201,7 +201,7 @@ struct OverlayInteractionModel {
                 return [.beginEditing(seed: nil)]
             case .promptHotkey:
                 mode = .hidden
-                return [.hideOverlay]
+                return [.hideMinimal]
             case .managementHotkey:
                 mode = .management(confirmingArchive: false)
                 return [.showManagement]
@@ -250,11 +250,11 @@ struct OverlayInteractionModel {
                 }
             case .escape, .managementHotkey:
                 mode = .hidden
-                return [.hideOverlay]
+                return [.hideMinimal]
             case .promptHotkey:
                 // ⌥Space toggles the overlay closed from anywhere.
                 mode = .hidden
-                return [.hideOverlay]
+                return [.hideMinimal]
             case .tab:
                 // Tab cycles focus back to the prompt field (draft intact —
                 // the pill stays visible while the panel has focus).
@@ -271,7 +271,7 @@ struct OverlayInteractionModel {
                 return [.closeConversation, .showManagement]
             case .promptHotkey:
                 mode = .hidden
-                return [.hideOverlay]
+                return [.hideMinimal]
             case .voiceKey:
                 return [.toggleComposerTranscription]
             case .managementHotkey:
@@ -285,7 +285,7 @@ struct OverlayInteractionModel {
 
     /// Used when the conversation UI itself changes mode (e.g. opening an
     /// agent from a click) or when the controller must force a state.
-    mutating func forceMode(_ newMode: OverlayMode) {
+    mutating func forceMode(_ newMode: MinimalMode) {
         mode = newMode
     }
 }

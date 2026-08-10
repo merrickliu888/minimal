@@ -4,7 +4,7 @@ import SwiftUI
 /// and Running sections with keyboard-driven selection, archive confirmation
 /// inline.
 struct AgentPanelView: View {
-    @EnvironmentObject var controller: OverlayController
+    @EnvironmentObject var controller: MinimalController
     @EnvironmentObject var store: SessionStore
 
     private var isFocused: Bool {

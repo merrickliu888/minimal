@@ -5,7 +5,7 @@ import SwiftUI
 /// keep typing into the composer. Model changes apply live; the thinking
 /// level applies when the session next restarts/resumes.
 struct SessionModelPane: View {
-    @EnvironmentObject var controller: OverlayController
+    @EnvironmentObject var controller: MinimalController
     @EnvironmentObject var store: SessionStore
 
     private var meta: AgentSessionMeta? {

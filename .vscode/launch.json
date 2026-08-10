@@ -5,20 +5,20 @@
       "request": "launch",
       "args": [],
       "cwd": "${workspaceFolder:assistant}",
-      "name": "Debug Overlay",
-      "target": "Overlay",
+      "name": "Debug Minimal",
+      "target": "Minimal",
       "configuration": "debug",
-      "preLaunchTask": "swift: Build Debug Overlay"
+      "preLaunchTask": "swift: Build Debug Minimal"
     },
     {
       "type": "swift",
       "request": "launch",
       "args": [],
       "cwd": "${workspaceFolder:assistant}",
-      "name": "Release Overlay",
-      "target": "Overlay",
+      "name": "Release Minimal",
+      "target": "Minimal",
       "configuration": "release",
-      "preLaunchTask": "swift: Build Release Overlay"
+      "preLaunchTask": "swift: Build Release Minimal"
     }
   ]
 }

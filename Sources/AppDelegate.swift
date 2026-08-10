@@ -12,7 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     lazy var providers: [AgentProvider] = [codexProvider, claudeCodeProvider]
     lazy var coordinator = AgentCoordinator(store: store, providers: providers)
     lazy var settingsModel = SettingsModel(providers: providers)
-    lazy var overlayController = OverlayController(
+    lazy var minimalController = MinimalController(
         store: store, coordinator: coordinator, transcriber: transcriber
     )
 
@@ -23,16 +23,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         permissions.refresh()
 
-        overlayController.canUseOverlay = { [weak self] in
+        minimalController.canUseMinimal = { [weak self] in
             guard let self else { return false }
             return self.permissions.allGranted && self.providerConnected
         }
-        overlayController.onRequestSettings = { [weak self] in
+        minimalController.onRequestSettings = { [weak self] in
             self?.showSettingsWindow()
         }
 
         hotkeys.onHotkey = { [weak self] hotkey in
-            self?.overlayController.handleHotkey(hotkey)
+            self?.minimalController.handleHotkey(hotkey)
         }
         hotkeys.start()
 
@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             window.contentViewController = hosting
             window.setContentSize(NSSize(width: 540, height: 640))
-            window.title = "Overlay"
+            window.title = "Minimal"
             window.isReleasedWhenClosed = false
             window.center()
             settingsWindow = window

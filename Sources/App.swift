@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct OverlayApp: App {
+struct MinimalApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
@@ -31,16 +31,16 @@ struct MenuBarView: View {
             Text(statusLine(needsInput: needsInput, running: running))
             Divider()
             Button("New Agent  ⌥Space") {
-                appDelegate.overlayController.handleHotkey(.promptEntry)
+                appDelegate.minimalController.handleHotkey(.promptEntry)
             }
             Button("Manage Agents  ⌥Tab") {
-                appDelegate.overlayController.handleHotkey(.management)
+                appDelegate.minimalController.handleHotkey(.management)
             }
             Divider()
             Button("Settings…") {
                 appDelegate.showSettingsWindow()
             }
-            Button("Quit Overlay") {
+            Button("Quit Minimal") {
                 NSApp.terminate(nil)
             }
         }

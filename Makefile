@@ -1,5 +1,5 @@
-APP_NAME ?= Overlay
-BUNDLE_ID ?= dev.overlay.app
+APP_NAME ?= Minimal
+BUNDLE_ID ?= dev.minimal.app
 CODESIGN_IDENTITY ?= -
 ARCH ?= $(shell uname -m)
 BUILD_DIR = build
@@ -9,7 +9,7 @@ SOURCES = $(shell find Sources -name '*.swift' -type f | LC_ALL=C sort)
 TEST_SOURCES = $(shell find Tests -name '*.swift' -type f | LC_ALL=C sort) \
 	Sources/Core/StreamJSON.swift \
 	Sources/Core/AgentModels.swift \
-	Sources/Core/OverlayInteractionModel.swift \
+	Sources/Core/MinimalInteractionModel.swift \
 	Sources/Core/SessionStore.swift \
 	Sources/Core/ClaudeCodeLauncher.swift \
 	Sources/Core/CodexLauncher.swift \
@@ -33,7 +33,7 @@ all: app
 
 # The app is built with SwiftPM (external dependency: Textual for markdown
 # rendering); the bundle is still assembled by hand.
-app: $(SOURCES) Package.swift Info.plist Overlay.entitlements
+app: $(SOURCES) Package.swift Info.plist Minimal.entitlements
 	swift build -c release
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
 	@cp "$(SPM_BIN)/$(APP_NAME)" "$(MACOS_DIR)/$(APP_NAME)"
@@ -50,7 +50,7 @@ app: $(SOURCES) Package.swift Info.plist Overlay.entitlements
 	@plutil -replace CFBundleDisplayName -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"
 	@plutil -replace CFBundleExecutable -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"
 	@plutil -replace CFBundleIdentifier -string "$(BUNDLE_ID)" "$(CONTENTS)/Info.plist"
-	@codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" --entitlements Overlay.entitlements "$(APP_BUNDLE)"
+	@codesign --force --options runtime --sign "$(CODESIGN_IDENTITY)" --entitlements Minimal.entitlements "$(APP_BUNDLE)"
 	@echo "Built $(APP_BUNDLE)"
 
 run: app
@@ -59,11 +59,11 @@ run: app
 test:
 	@mkdir -p $(BUILD_DIR)
 	swiftc -parse-as-library \
-		-o $(BUILD_DIR)/overlay-tests \
+		-o $(BUILD_DIR)/minimal-tests \
 		-sdk "$(SDK)" \
 		-target $(ARCH)-apple-macosx$(MIN_MACOS) \
 		$(TEST_SOURCES)
-	$(BUILD_DIR)/overlay-tests
+	$(BUILD_DIR)/minimal-tests
 
 clean:
 	rm -rf $(BUILD_DIR) .build

@@ -1,11 +1,11 @@
-# Overlay
+# Minimal
 
 A macOS overlay for creating and managing AI coding agents without leaving
 whatever you're doing — a system-wide HUD in the spirit of JARVIS, with the
 interaction model of Superhuman: keyboard-first, voice-first, minimal
 interruption.
 
-Overlay drives **Codex** and **Claude Code** through a shared provider layer.
+Minimal drives **Codex** and **Claude Code** through a shared provider layer.
 
 ## What it does
 
@@ -85,7 +85,7 @@ While the terminal pane has focus, all keys go to the shell (Escape reaches
 vim, etc.) — only ⌃` is intercepted, to toggle back.
 
 All single-letter shortcuts are interpreted against the current interaction
-mode (an explicit state machine, `OverlayInteractionModel`), never globally.
+mode (an explicit state machine, `MinimalInteractionModel`), never globally.
 
 ## Build & run
 
@@ -95,7 +95,7 @@ or [Claude Code](https://claude.com/claude-code) (`claude`). The selected CLI
 must be installed and logged in.
 
 ```bash
-make            # build build/Overlay.app
+make            # build build/Minimal.app
 make run        # build and launch
 make test       # unit tests for the pure core (protocol, state machine, store)
 ```
@@ -135,14 +135,14 @@ Sources/
     CodexProvider.swift        process-per-turn Codex exec lifecycle
     CodexStreamJSON.swift      pure: Codex JSONL event decoding
     StreamJSON.swift           pure: wire protocol encode/decode (incl. can_use_tool)
-    OverlayInteractionModel.swift  pure keyboard state machine (mode -> commands)
+    MinimalInteractionModel.swift  pure keyboard state machine (mode -> commands)
     SessionStore.swift         persistence: sessions.json + per-session transcripts
     AgentCoordinator.swift     live runs <-> store bridge, start/resume/archive
     Transcriber.swift          SFSpeechRecognizer + AVAudioEngine, level metering
     PermissionsManager.swift   TCC status, requests, polling
   UI/
-    OverlayPanel.swift         non-activating key-capable NSPanel
-    OverlayController.swift    panels, key routing, command execution
+    MinimalPanel.swift         non-activating key-capable NSPanel
+    MinimalController.swift    panels, key routing, command execution
     PromptPillView.swift       waveform pill <-> editable field
     AgentPanelView.swift       Needs Input / Running / Failed sections
     ConversationView.swift     transcript, approval bar, composer

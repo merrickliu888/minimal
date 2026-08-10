@@ -16,7 +16,7 @@ final class SessionStore: ObservableObject {
 
     static func defaultDirectory() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("Overlay")
+        return base.appendingPathComponent("Minimal")
     }
 
     init(directory: URL = SessionStore.defaultDirectory()) {

@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Borderless, non-activating panel that CAN become key: it receives typed
 /// text while the previously frontmost app stays active (Spotlight-style).
-final class OverlayPanel: NSPanel {
+final class MinimalPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 

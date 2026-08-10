@@ -7,10 +7,10 @@ import SwiftUI
 /// routing. The single place where key events become interaction-model
 /// inputs and model commands become side effects.
 @MainActor
-final class OverlayController: ObservableObject {
+final class MinimalController: ObservableObject {
 
     // Mirrored interaction state for SwiftUI.
-    @Published private(set) var mode: OverlayMode = .hidden
+    @Published private(set) var mode: MinimalMode = .hidden
     // Prompt pill.
     @Published var draftText: String = ""
     /// Directory the next agent will work in; nil = Settings default.
@@ -81,13 +81,13 @@ final class OverlayController: ObservableObject {
 
     /// Gate: returns false when onboarding is incomplete; the overlay then
     /// defers to the settings window.
-    var canUseOverlay: () -> Bool = { true }
+    var canUseMinimal: () -> Bool = { true }
     var onRequestSettings: () -> Void = {}
 
-    private var model = OverlayInteractionModel()
+    private var model = MinimalInteractionModel()
     /// Bottom-center panel hosting the management card stacked above the pill.
-    private var pillPanel: OverlayPanel?
-    private var conversationPanel: OverlayPanel?
+    private var pillPanel: MinimalPanel?
+    private var conversationPanel: MinimalPanel?
     private var keyMonitor: Any?
     private var activeScreen: NSScreen?
     private var composerBaseText: String = ""
@@ -300,7 +300,7 @@ final class OverlayController: ObservableObject {
     // MARK: - Entry points
 
     func handleHotkey(_ hotkey: HotkeyManager.Hotkey) {
-        guard canUseOverlay() else {
+        guard canUseMinimal() else {
             onRequestSettings()
             return
         }
@@ -312,7 +312,7 @@ final class OverlayController: ObservableObject {
 
     /// Open an agent conversation directly (e.g. from the menu bar).
     func openConversation(sessionID: UUID) {
-        guard canUseOverlay() else { return }
+        guard canUseMinimal() else { return }
         openSessionID = sessionID
         model.forceMode(.conversation)
         mode = .conversation
@@ -321,14 +321,14 @@ final class OverlayController: ObservableObject {
 
     // MARK: - Interaction model plumbing
 
-    private func feed(_ input: OverlayInput) {
+    private func feed(_ input: MinimalInput) {
         let commands = model.handle(input)
         mode = model.mode
         for command in commands { execute(command) }
         syncPanels()
     }
 
-    private func execute(_ command: OverlayCommand) {
+    private func execute(_ command: MinimalCommand) {
         switch command {
         case .showPromptPill:
             activeScreen = Self.screenUnderMouse()
@@ -363,7 +363,7 @@ final class OverlayController: ObservableObject {
         case .submitPrompt:
             submitPrompt()
 
-        case .hideOverlay:
+        case .hideMinimal:
             stopComposerTranscription()
             collapseSidePanes()
             clearSuggestions()
@@ -464,7 +464,7 @@ final class OverlayController: ObservableObject {
 
     // MARK: - Side panes (terminal / diff)
 
-    private func expandSideSlot(_ panel: OverlayPanel) {
+    private func expandSideSlot(_ panel: MinimalPanel) {
         var frame = panel.frame
         frame.size.width += sidePaneWidth
         if let screen = panel.screen ?? NSScreen.main {
@@ -476,7 +476,7 @@ final class OverlayController: ObservableObject {
         panel.setFrame(frame, display: true)
     }
 
-    private func shrinkSideSlot(_ panel: OverlayPanel) {
+    private func shrinkSideSlot(_ panel: MinimalPanel) {
         var frame = panel.frame
         frame.size.width -= sidePaneWidth
         panel.setFrame(frame, display: true)
@@ -857,7 +857,7 @@ final class OverlayController: ObservableObject {
         return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
     }
 
-    private func screenForOverlay() -> NSScreen {
+    private func screenForMinimal() -> NSScreen {
         activeScreen ?? Self.screenUnderMouse() ?? NSScreen.main ?? NSScreen.screens[0]
     }
 
@@ -868,7 +868,7 @@ final class OverlayController: ObservableObject {
             if transcriber.isActive && !composerTranscribing { _ = transcriber.stop() }
 
         case .promptEntry:
-            let screen = screenForOverlay()
+            let screen = screenForMinimal()
             presentPillPanel(on: screen)
             installKeyMonitorIfNeeded()
 
@@ -877,14 +877,14 @@ final class OverlayController: ObservableObject {
             // stacked vertically — which of them "has focus" is driven by
             // `mode`, so the panel just needs to be key. Drop the field's
             // caret so it doesn't look editable while the card is navigated.
-            let screen = screenForOverlay()
+            let screen = screenForMinimal()
             conversationPanel?.dismiss()
             presentPillPanel(on: screen)
             pillPanel?.makeFirstResponder(nil)
             installKeyMonitorIfNeeded()
 
         case .conversation:
-            let screen = screenForOverlay()
+            let screen = screenForMinimal()
             pillPanel?.dismiss()
             presentConversationPanel(on: screen)
             conversationPanel?.focusFirstTextInput()
@@ -945,7 +945,7 @@ final class OverlayController: ObservableObject {
             width: 640,
             height: min(680, screen.visibleFrame.height - 48)
         )
-        let panel = pillPanel ?? OverlayPanel(size: size)
+        let panel = pillPanel ?? MinimalPanel(size: size)
         pillPanel = panel
         if panel.isVisible {
             // Already showing: the SwiftUI view tracks @Published state, so
@@ -967,15 +967,15 @@ final class OverlayController: ObservableObject {
         panel.present(on: screen, frame: frame)
     }
 
-    private static let conversationFrameKey = "OverlayConversationFrame"
+    private static let conversationFrameKey = "MinimalConversationFrame"
 
     private func presentConversationPanel(on screen: NSScreen) {
         let defaultSize = NSSize(width: 808, height: 668)
-        let panel: OverlayPanel
+        let panel: MinimalPanel
         if let existing = conversationPanel {
             panel = existing
         } else {
-            panel = OverlayPanel(size: defaultSize, movableByBackground: true)
+            panel = MinimalPanel(size: defaultSize, movableByBackground: true)
             panel.minSize = NSSize(width: 560, height: 440)
             conversationPanel = panel
         }
@@ -1035,7 +1035,7 @@ final class OverlayController: ObservableObject {
         // Only interpret keys aimed at our overlay panels. When some other
         // window is key (the directory picker, the settings window), the
         // user is typing into it — never treat that as overlay shortcuts.
-        if let keyWindow = NSApp.keyWindow, !(keyWindow is OverlayPanel) {
+        if let keyWindow = NSApp.keyWindow, !(keyWindow is MinimalPanel) {
             return false
         }
         // ⌘, opens Settings from any overlay mode.

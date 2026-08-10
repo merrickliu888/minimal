@@ -4,7 +4,7 @@ import SwiftUI
 /// navigated with the same keys. The trailing row opens the system picker
 /// for a directory that isn't in the list yet.
 struct ProjectPickerView: View {
-    @EnvironmentObject var controller: OverlayController
+    @EnvironmentObject var controller: MinimalController
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
