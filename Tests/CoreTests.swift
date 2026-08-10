@@ -369,6 +369,8 @@ func testCodexArguments() {
     expect(initial.contains("--json"), "Codex JSONL enabled")
     expect(initial.contains("--sandbox"), "new Codex session pins sandbox")
     expect(initial.contains("workspace-write"), "Codex workspace-write sandbox")
+    expect(initial.contains(#"approval_policy="on-request""#), "Codex uses Auto approval policy")
+    expect(!initial.contains(#"approval_policy="never""#), "Codex no longer disables approvals")
     expect(initial.contains("--skip-git-repo-check"), "non-git project directories allowed")
     expect(initial.contains("--model"), "Codex model flag present")
     expect(initial.contains(#"model_reasoning_effort="high""#), "Codex effort config present")
@@ -380,6 +382,7 @@ func testCodexArguments() {
     expectEqual(Array(resumed.prefix(3)), ["exec", "resume", "thread-123"], "Codex resume syntax")
     expect(!resumed.contains("--sandbox"), "resume uses config instead of unsupported sandbox flag")
     expect(resumed.contains(#"sandbox_mode="workspace-write""#), "resume pins workspace-write sandbox")
+    expect(resumed.contains(#"approval_policy="on-request""#), "resume preserves Auto approval policy")
     expectEqual(resumed.last, "continue", "follow-up prompt present")
 }
 

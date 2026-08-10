@@ -69,7 +69,7 @@ enum CodexLauncher {
         if let resumeSessionID {
             args += ["resume", resumeSessionID]
         }
-        args += ["--json", "--skip-git-repo-check", "--config", "approval_policy=\"never\""]
+        args += ["--json", "--skip-git-repo-check", "--config", "approval_policy=\"on-request\""]
         // Current `exec resume` does not accept the dedicated sandbox flag,
         // so use the equivalent config override on resumed turns.
         if resumeSessionID == nil {
