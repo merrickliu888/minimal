@@ -4,7 +4,7 @@ CODESIGN_IDENTITY ?= -
 ARCH ?= $(shell uname -m)
 BUILD_DIR = build
 MIN_MACOS = 15.0
-ICON_SOURCE = minimal-logo.png
+ICON_SOURCE = Assets/minimal-logo.png
 ICONSET_DIR = $(BUILD_DIR)/Minimal.iconset
 ICON_FILE = $(BUILD_DIR)/Minimal.icns
 

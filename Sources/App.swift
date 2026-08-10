@@ -13,7 +13,7 @@ struct MinimalApp: App {
                 .environmentObject(appDelegate.store)
                 .environmentObject(appDelegate.permissions)
         } label: {
-            Image(systemName: "circle.hexagongrid.fill")
+            Image(systemName: "circle.fill")
         }
     }
 }
