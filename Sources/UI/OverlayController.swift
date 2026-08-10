@@ -21,6 +21,12 @@ final class OverlayController: ObservableObject {
         }
     }
     private static let pickedDirectoryKey = "agentPickedWorkingDirectory"
+    /// Harness for the next agent. Existing installs default to Claude Code
+    /// so adding Codex does not silently change their established behavior.
+    @Published var draftHarness: AgentHarness = .claudeCode {
+        didSet { UserDefaults.standard.set(draftHarness.rawValue, forKey: Self.pickedHarnessKey) }
+    }
+    private static let pickedHarnessKey = "agentPickedHarness"
     /// Model alias for the next agent; nil = CLI default. Persisted.
     @Published var draftModel: String? {
         didSet { UserDefaults.standard.set(draftModel, forKey: Self.pickedModelKey) }
@@ -101,13 +107,17 @@ final class OverlayController: ObservableObject {
                 draftWorkingDirectory = saved
             }
         }
+        if let savedHarness = UserDefaults.standard.string(forKey: Self.pickedHarnessKey),
+           let harness = AgentHarness(rawValue: savedHarness),
+           coordinator.provider(for: harness) != nil {
+            draftHarness = harness
+        }
         if let savedModel = UserDefaults.standard.string(forKey: Self.pickedModelKey),
-           ClaudeCodeLauncher.modelOptions.contains(savedModel) {
+           draftModelOptions.contains(savedModel) {
             draftModel = savedModel
         }
         if let savedEffort = UserDefaults.standard.string(forKey: Self.pickedEffortKey),
-           ClaudeCodeLauncher.effortOptions.contains(savedEffort),
-           ClaudeCodeLauncher.supportsEffort(model: draftModel) {
+           draftEffortOptions.contains(savedEffort) {
             draftEffort = savedEffort
         }
         loadRecentProjects()
@@ -429,7 +439,7 @@ final class OverlayController: ObservableObject {
             }
 
         case .showModelPicker:
-            modelSelectedIndex = 0
+            modelSelectedIndex = harnessOptions.firstIndex(of: draftHarness) ?? 0
 
         case .modelPrevious:
             moveModelSelection(-1)
@@ -568,17 +578,26 @@ final class OverlayController: ObservableObject {
         openSessionID.flatMap { store.session(id: $0) }
     }
 
+    private var sessionProvider: AgentProvider? {
+        sessionMeta.flatMap { coordinator.provider(forID: $0.providerID) }
+    }
+
     var sessionConcreteModels: [String] {
-        ClaudeCodeLauncher.modelOptions.compactMap { $0 }
+        sessionProvider?.modelOptions.compactMap { $0 } ?? []
+    }
+
+    var sessionEffortOptions: [String?] {
+        guard let sessionProvider else { return [] }
+        return sessionProvider.effortOptions(for: sessionMeta?.model)
     }
 
     var sessionPaneShowsThinking: Bool {
-        ClaudeCodeLauncher.supportsEffort(model: sessionMeta?.model)
+        !sessionEffortOptions.isEmpty
     }
 
     private var sessionModelRowCount: Int {
         sessionConcreteModels.count
-            + (sessionPaneShowsThinking ? ClaudeCodeLauncher.effortOptions.count : 0)
+            + sessionEffortOptions.count
     }
 
     private func moveSessionModelSelection(_ delta: Int) {
@@ -591,12 +610,12 @@ final class OverlayController: ObservableObject {
         let models = sessionConcreteModels
         if modelSelectedIndex < models.count {
             coordinator.setModel(models[modelSelectedIndex], for: sessionID)
-            if !ClaudeCodeLauncher.supportsEffort(model: models[modelSelectedIndex]) {
+            if sessionProvider?.supportsEffort(model: models[modelSelectedIndex]) != true {
                 coordinator.setEffort(nil, for: sessionID)
             }
         } else if sessionPaneShowsThinking {
             let index = modelSelectedIndex - models.count
-            let efforts = ClaudeCodeLauncher.effortOptions
+            let efforts = sessionEffortOptions
             if index < efforts.count {
                 coordinator.setEffort(efforts[index], for: sessionID)
             }
@@ -647,7 +666,7 @@ final class OverlayController: ObservableObject {
         }
         addRecentProject(draftWorkingDirectory ?? coordinator.defaultWorkingDirectory)
         openSessionID = coordinator.startAgent(
-            prompt: prompt, workingDirectory: draftWorkingDirectory,
+            prompt: prompt, harness: draftHarness, workingDirectory: draftWorkingDirectory,
             model: draftModel, effort: draftEffort
         )
         composerText = ""
@@ -658,20 +677,35 @@ final class OverlayController: ObservableObject {
     /// level whenever the configured model supports one.
     var pillModelDisplay: String {
         let model = draftModel ?? "default"
-        guard ClaudeCodeLauncher.supportsEffort(model: draftModel) else { return model }
+        guard modelPickerShowsThinking else { return model }
         return "\(model) · \(draftEffort ?? "default")"
     }
 
     // MARK: - Model picker rows
 
+    var harnessOptions: [AgentHarness] {
+        AgentHarness.allCases.filter { coordinator.provider(for: $0) != nil }
+    }
+
+    private var draftProvider: AgentProvider? {
+        coordinator.provider(for: draftHarness)
+    }
+
+    var draftModelOptions: [String?] {
+        draftProvider?.modelOptions ?? [nil]
+    }
+
+    var draftEffortOptions: [String?] {
+        draftProvider?.effortOptions(for: draftModel) ?? []
+    }
+
     /// True when the thinking section is shown for the current draft model.
     var modelPickerShowsThinking: Bool {
-        ClaudeCodeLauncher.supportsEffort(model: draftModel)
+        !draftEffortOptions.isEmpty
     }
 
     private var modelPickerRowCount: Int {
-        ClaudeCodeLauncher.modelOptions.count
-            + (modelPickerShowsThinking ? ClaudeCodeLauncher.effortOptions.count : 0)
+        harnessOptions.count + draftModelOptions.count + draftEffortOptions.count
     }
 
     private func moveModelSelection(_ delta: Int) {
@@ -680,20 +714,43 @@ final class OverlayController: ObservableObject {
     }
 
     private func applyModelSelection() {
-        let models = ClaudeCodeLauncher.modelOptions
-        if modelSelectedIndex < models.count {
-            draftModel = models[modelSelectedIndex]
-            if !ClaudeCodeLauncher.supportsEffort(model: draftModel) {
+        let harnesses = harnessOptions
+        if modelSelectedIndex < harnesses.count {
+            let harness = harnesses[modelSelectedIndex]
+            if harness != draftHarness {
+                draftHarness = harness
+                draftModel = nil
                 draftEffort = nil
             }
-        } else if modelPickerShowsThinking {
-            let efforts = ClaudeCodeLauncher.effortOptions
-            let index = modelSelectedIndex - models.count
-            if index < efforts.count { draftEffort = efforts[index] }
+        } else {
+            let modelIndex = modelSelectedIndex - harnesses.count
+            let models = draftModelOptions
+            if modelIndex < models.count {
+                draftModel = models[modelIndex]
+                if !modelPickerShowsThinking {
+                    draftEffort = nil
+                } else if !draftEffortOptions.contains(draftEffort) {
+                    draftEffort = nil
+                }
+            } else if modelPickerShowsThinking {
+                let effortIndex = modelIndex - models.count
+                let efforts = draftEffortOptions
+                if effortIndex < efforts.count { draftEffort = efforts[effortIndex] }
+            }
         }
-        // The thinking section may have appeared/disappeared; keep the
-        // highlight in range.
+        // The model/thinking sections may have changed; keep the highlight
+        // in range.
         modelSelectedIndex = min(modelSelectedIndex, modelPickerRowCount - 1)
+    }
+
+    /// Display string for an open session. Harness deliberately stays out of
+    /// the chip; it remains model + thinking level.
+    func sessionModelDisplay(_ meta: AgentSessionMeta) -> String {
+        let model = meta.model ?? "default"
+        guard coordinator.provider(forID: meta.providerID)?.supportsEffort(model: meta.model) == true else {
+            return model
+        }
+        return "\(model) · \(meta.effort ?? "default")"
     }
 
     // MARK: - Recent projects

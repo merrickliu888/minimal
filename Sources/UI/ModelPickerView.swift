@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Model + thinking-level picker (⌘M), shown in place of the agents card.
+/// Harness + model + thinking-level picker (⌘M), shown in place of the agents card.
 /// One flat keyboard list across both sections: Space applies a row and
 /// stays open (so both can be set in one visit), Return applies and closes.
 struct ModelPickerView: View {
@@ -12,16 +12,22 @@ struct ModelPickerView: View {
             Divider().opacity(0.4)
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
+                    sectionLabel("HARNESS")
+                    ForEach(Array(controller.harnessOptions.enumerated()), id: \.offset) { index, harness in
+                        row(index: index, title: harness.displayName,
+                            subtitle: nil,
+                            active: controller.draftHarness == harness)
+                    }
                     sectionLabel("MODEL")
-                    ForEach(Array(ClaudeCodeLauncher.modelOptions.enumerated()), id: \.offset) { index, model in
-                        row(index: index, title: model ?? "default",
-                            subtitle: model == nil ? "your Claude Code default" : nil,
+                    ForEach(Array(controller.draftModelOptions.enumerated()), id: \.offset) { index, model in
+                        row(index: controller.harnessOptions.count + index, title: model ?? "default",
+                            subtitle: model == nil ? "your \(controller.draftHarness.displayName) default" : nil,
                             active: controller.draftModel == model)
                     }
                     if controller.modelPickerShowsThinking {
                         sectionLabel("THINKING")
-                        ForEach(Array(ClaudeCodeLauncher.effortOptions.enumerated()), id: \.offset) { index, effort in
-                            row(index: ClaudeCodeLauncher.modelOptions.count + index,
+                        ForEach(Array(controller.draftEffortOptions.enumerated()), id: \.offset) { index, effort in
+                            row(index: controller.harnessOptions.count + controller.draftModelOptions.count + index,
                                 title: effort ?? "default",
                                 subtitle: nil,
                                 active: controller.draftEffort == effort)

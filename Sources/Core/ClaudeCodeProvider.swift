@@ -3,8 +3,12 @@ import Foundation
 /// Claude Code integration: spawns `claude` in stream-json mode and adapts
 /// its wire protocol to the AgentProvider/AgentRun abstraction.
 final class ClaudeCodeProvider: AgentProvider {
-    let id = "claude-code"
-    let displayName = "Claude Code"
+    let harness = AgentHarness.claudeCode
+    var modelOptions: [String?] { ClaudeCodeLauncher.modelOptions }
+
+    func effortOptions(for model: String?) -> [String?] {
+        ClaudeCodeLauncher.supportsEffort(model: model) ? ClaudeCodeLauncher.effortOptions : []
+    }
 
     /// UserDefaults key for a user-configured executable path.
     static let configuredPathKey = "claudeExecutablePath"
@@ -234,6 +238,12 @@ final class ClaudeCodeRun: AgentRun {
             requestID: UUID().uuidString.lowercased(), model: model
         ) else { return }
         writeLine(line)
+    }
+
+    func setEffort(_ effort: String?) {
+        // Claude Code exposes effort as a launch flag rather than a live
+        // control request. AgentCoordinator still persists the new value for
+        // the next resume.
     }
 
     func interrupt() {

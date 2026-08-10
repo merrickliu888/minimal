@@ -340,6 +340,63 @@ func testArguments() {
     expectEqual(request["model"] as! String, "sonnet", "set_model model")
 }
 
+func testCodexExecutableResolution() {
+    let resolved = CodexLauncher.resolveExecutable(
+        configuredPath: nil, home: "/Users/t", pathEnvironment: "/bin:/custom",
+        isExecutable: { $0 == "/custom/codex" }
+    )
+    expectEqual(resolved, "/custom/codex", "Codex PATH fallback")
+
+    let known = CodexLauncher.resolveExecutable(
+        configuredPath: nil, home: "/Users/t", pathEnvironment: nil,
+        isExecutable: { $0 == "/Users/t/.volta/bin/codex" }
+    )
+    expectEqual(known, "/Users/t/.volta/bin/codex", "Codex well-known path")
+}
+
+func testCodexArguments() {
+    let initial = CodexLauncher.arguments(
+        prompt: "fix it", resumeSessionID: nil,
+        model: "gpt-5.6-sol", effort: "high"
+    )
+    expectEqual(initial.first, "exec", "Codex uses exec")
+    expect(initial.contains("--json"), "Codex JSONL enabled")
+    expect(initial.contains("--sandbox"), "new Codex session pins sandbox")
+    expect(initial.contains("workspace-write"), "Codex workspace-write sandbox")
+    expect(initial.contains("--skip-git-repo-check"), "non-git project directories allowed")
+    expect(initial.contains("--model"), "Codex model flag present")
+    expect(initial.contains(#"model_reasoning_effort="high""#), "Codex effort config present")
+    expectEqual(initial.last, "fix it", "prompt is final argument")
+
+    let resumed = CodexLauncher.arguments(
+        prompt: "continue", resumeSessionID: "thread-123"
+    )
+    expectEqual(Array(resumed.prefix(3)), ["exec", "resume", "thread-123"], "Codex resume syntax")
+    expect(!resumed.contains("--sandbox"), "resume uses config instead of unsupported sandbox flag")
+    expect(resumed.contains(#"sandbox_mode="workspace-write""#), "resume pins workspace-write sandbox")
+    expectEqual(resumed.last, "continue", "follow-up prompt present")
+}
+
+func testCodexStreamParsing() {
+    let started = #"{"type":"thread.started","thread_id":"0199a213-81c0"}"#
+    expectEqual(CodexStreamJSON.parseLine(started), .sessionStarted(sessionID: "0199a213-81c0"), "Codex thread id")
+
+    let message = #"{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"Done."}}"#
+    expectEqual(CodexStreamJSON.parseLine(message), .assistantText("Done."), "Codex assistant message")
+
+    let command = #"{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"swift test","status":"in_progress"}}"#
+    expectEqual(CodexStreamJSON.parseLine(command), .toolUse(name: "Shell", summary: "swift test"), "Codex command")
+
+    let edit = #"{"type":"item.completed","item":{"id":"item_2","type":"file_change","changes":[{"path":"Sources/App.swift","kind":"update"}]}}"#
+    expectEqual(CodexStreamJSON.parseLine(edit), .toolUse(name: "Edit", summary: "Sources/App.swift"), "Codex file change")
+
+    let completed = #"{"type":"turn.completed","usage":{"input_tokens":10}}"#
+    expectEqual(CodexStreamJSON.parseLine(completed), .turnEnded(isError: false, resultText: nil), "Codex turn complete")
+
+    let failed = #"{"type":"turn.failed","error":{"message":"rate limited"}}"#
+    expectEqual(CodexStreamJSON.parseLine(failed), .turnEnded(isError: true, resultText: "rate limited"), "Codex turn failure")
+}
+
 func testTitleDerivation() {
     expectEqual(ClaudeCodeLauncher.title(fromPrompt: "  fix   the\nlogin bug  "), "fix the login bug", "title collapses whitespace")
     expect(ClaudeCodeLauncher.title(fromPrompt: String(repeating: "word ", count: 40)).count <= 49, "title truncated")
@@ -542,6 +599,9 @@ struct TestRunner {
         testModelPickerFlow()
         testExecutableResolution()
         testArguments()
+        testCodexExecutableResolution()
+        testCodexArguments()
+        testCodexStreamParsing()
         testTitleDerivation()
         testDiffParsing()
         testSessionStorePersistence()

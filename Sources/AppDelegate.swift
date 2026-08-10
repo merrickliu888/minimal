@@ -6,10 +6,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     let store = SessionStore()
     let permissions = PermissionsManager()
-    let provider = ClaudeCodeProvider()
+    let codexProvider = CodexProvider()
+    let claudeCodeProvider = ClaudeCodeProvider()
     let transcriber = Transcriber()
-    lazy var coordinator = AgentCoordinator(store: store, provider: provider)
-    lazy var settingsModel = SettingsModel(provider: provider)
+    lazy var providers: [AgentProvider] = [codexProvider, claudeCodeProvider]
+    lazy var coordinator = AgentCoordinator(store: store, providers: providers)
+    lazy var settingsModel = SettingsModel(providers: providers)
     lazy var overlayController = OverlayController(
         store: store, coordinator: coordinator, transcriber: transcriber
     )
@@ -35,10 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.start()
 
         Task { @MainActor in
-            let health = await provider.checkHealth()
-            providerConnected = health.isConnected
-            settingsModel.health = health
-            if !permissions.allGranted || !health.isConnected {
+            await settingsModel.checkAll()
+            providerConnected = settingsModel.hasConnectedProvider
+            if !permissions.allGranted || !providerConnected {
                 showSettingsWindow()
             }
         }
@@ -79,8 +80,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     NSApp.setActivationPolicy(.accessory)
                     // Re-evaluate the gate as the user leaves setup.
                     if let self {
-                        let health = await self.provider.checkHealth()
-                        self.providerConnected = health.isConnected
+                        await self.settingsModel.checkAll()
+                        self.providerConnected = self.settingsModel.hasConnectedProvider
                     }
                 }
             }
@@ -91,9 +92,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         // Track connection state as checks complete while the window is open.
         Task { @MainActor in
-            let health = await provider.checkHealth()
-            providerConnected = health.isConnected
-            settingsModel.health = health
+            await settingsModel.checkAll()
+            providerConnected = settingsModel.hasConnectedProvider
         }
     }
 }

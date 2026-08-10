@@ -32,7 +32,7 @@ struct SessionModelPane: View {
                     }
                     if controller.sessionPaneShowsThinking {
                         sectionLabel("THINKING — applies on next restart")
-                        ForEach(Array(ClaudeCodeLauncher.effortOptions.enumerated()), id: \.offset) { index, effort in
+                        ForEach(Array(controller.sessionEffortOptions.enumerated()), id: \.offset) { index, effort in
                             row(index: controller.sessionConcreteModels.count + index,
                                 title: effort ?? "default",
                                 active: meta?.effort == effort)

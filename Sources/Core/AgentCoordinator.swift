@@ -8,7 +8,11 @@ import Foundation
 @MainActor
 final class AgentCoordinator: ObservableObject, AgentRunDelegate {
     let store: SessionStore
-    let provider: AgentProvider
+    let providers: [AgentProvider]
+
+    private var providersByID: [String: AgentProvider] {
+        Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0) })
+    }
 
     /// Live process handles. Sessions without an entry are resumable.
     private var liveRuns: [UUID: AgentRun] = [:]
@@ -16,9 +20,17 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
     /// UserDefaults key for the default working directory of new agents.
     static let workingDirectoryKey = "agentWorkingDirectory"
 
-    init(store: SessionStore, provider: AgentProvider) {
+    init(store: SessionStore, providers: [AgentProvider]) {
         self.store = store
-        self.provider = provider
+        self.providers = providers
+    }
+
+    func provider(for harness: AgentHarness) -> AgentProvider? {
+        providersByID[harness.rawValue]
+    }
+
+    func provider(forID id: String) -> AgentProvider? {
+        providersByID[id]
     }
 
     var defaultWorkingDirectory: String {
@@ -31,9 +43,16 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
     /// directory (Settings default when nil). Returns the session id so the
     /// overlay can open its conversation immediately.
     @discardableResult
-    func startAgent(prompt: String, workingDirectory: String? = nil, model: String? = nil, effort: String? = nil) -> UUID {
+    func startAgent(
+        prompt: String,
+        harness: AgentHarness,
+        workingDirectory: String? = nil,
+        model: String? = nil,
+        effort: String? = nil
+    ) -> UUID {
+        let provider = provider(for: harness)
         let meta = AgentSessionMeta(
-            providerID: provider.id,
+            providerID: harness.rawValue,
             providerSessionID: nil,
             title: ClaudeCodeLauncher.title(fromPrompt: prompt),
             workingDirectory: workingDirectory ?? defaultWorkingDirectory,
@@ -47,9 +66,17 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
         // Upgrade the truncated-prompt title to a generated one in the
         // background; keep the fallback if generation fails.
         Task { [weak self] in
-            guard let self, let title = await self.provider.generateTitle(forPrompt: prompt) else { return }
+            guard let self, let provider,
+                  let title = await provider.generateTitle(forPrompt: prompt)
+            else { return }
             guard self.store.session(id: meta.id)?.state != .archived else { return }
             self.store.update(id: meta.id) { $0.title = title }
+        }
+        guard let provider else {
+            let detail = "The \(harness.displayName) harness is not configured."
+            store.setState(id: meta.id, .failed, detail: detail)
+            store.append(message: ChatMessage(role: .error, text: detail), to: meta.id)
+            return meta.id
         }
         do {
             let run = try provider.startRun(
@@ -77,6 +104,12 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
         if let run = liveRuns[sessionID] {
             run.send(text: text)
             store.setState(id: sessionID, .running, detail: "Working…")
+            return
+        }
+        guard let provider = provider(forID: meta.providerID) else {
+            let detail = "The session's coding harness is no longer available."
+            store.setState(id: sessionID, .failed, detail: detail)
+            store.append(message: ChatMessage(role: .error, text: detail), to: sessionID)
             return
         }
         do {
@@ -113,10 +146,11 @@ final class AgentCoordinator: ObservableObject, AgentRunDelegate {
         liveRuns[sessionID]?.interrupt()
     }
 
-    /// Persist a session's thinking level. There is no live control for it —
-    /// it's a launch flag, applied when the session next restarts/resumes.
+    /// Persist a session's thinking level and let harnesses that launch one
+    /// process per turn apply it to the next message.
     func setEffort(_ effort: String?, for sessionID: UUID) {
         store.update(id: sessionID) { $0.effort = effort }
+        liveRuns[sessionID]?.setEffort(effort)
     }
 
     func pendingPermissions(for sessionID: UUID) -> [PermissionRequest] {

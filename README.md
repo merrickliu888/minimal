@@ -5,8 +5,7 @@ whatever you're doing — a system-wide HUD in the spirit of JARVIS, with the
 interaction model of Superhuman: keyboard-first, voice-first, minimal
 interruption.
 
-The MVP drives **Claude Code**; the provider layer is an abstraction so other
-agents (Codex, …) can be added later.
+Overlay drives **Codex** and **Claude Code** through a shared provider layer.
 
 ## What it does
 
@@ -15,19 +14,19 @@ agents (Codex, …) can be added later.
   **⌘D** to toggle voice transcription (Apple Speech framework) — spoken text
   appends to whatever you've typed, and typing any key while listening stops
   transcription and keeps going from the keyboard. **Return** submits: the
-  overlay starts a new Claude Code session and opens its conversation so you
+  overlay starts a new session in the selected harness and opens its conversation so you
   can watch it work.
 - **⌥Tab** from any app: a compact panel appears top-left showing your agents
   in two sections — **Needs Input** (prominent, blue dot) and **Running**
   (spinner) — plus failed ones. Navigate entirely by keyboard.
-- Opening an agent shows its conversation — messages and tool actions the way
-  Claude Code presents them — with a composer that supports typing and voice.
+- Opening an agent shows its conversation — messages and tool actions in a
+  compact structured transcript — with a composer that supports typing and voice.
 - Agents that ask a question or want to run a non-allowlisted tool flip to
   **Needs Input**; tool approvals surface as a bar in the conversation
   (**⌘Y** allow / **⌘N** deny).
 - Sessions survive app restarts: metadata and transcripts are persisted, and
-  replying to a restored agent resumes the underlying Claude Code session
-  (`--resume`).
+  replying to a restored agent resumes the underlying Codex or Claude Code
+  session.
 
 The overlay never activates the app or steals your current app's frontmost
 status — panels are non-activating `NSPanel`s that take key focus
@@ -49,7 +48,7 @@ Prompt entry (bottom pill):
 |---|---|
 | ⌘D | Toggle voice transcription (appends to typed text) |
 | ⌘P | Open the Projects picker in place of the agents card: recent directories navigated with E/D/arrows, Space/⏎ selects, and an "Add new project…" row opens the system directory picker. Esc or ⌘P closes it |
-| ⌘M | Open the Model tab: pick the model and (when supported) its thinking level. E/D/arrows navigate, Space applies and stays open, ⏎ applies and closes, esc/⌘M closes |
+| ⌘M | Open the Model tab: pick the harness (Codex or Claude Code), model, and supported thinking level. E/D/arrows navigate, Space applies and stays open, ⏎ applies and closes, esc/⌘M closes |
 | any typing key | While listening: stop transcription, keep typing |
 | ⏎ | Submit prompt, start agent, open its conversation |
 | ⇥ | Move focus to the agent panel |
@@ -76,7 +75,7 @@ Open agent (conversation):
 | ⌘D | Toggle voice input into the composer |
 | ⌘Y / ⌘N | Allow / deny a pending tool approval |
 | ⌃C | Interrupt the running turn (session stays alive) |
-| ⌘M | Switch the session's model live (cycles fable → opus → sonnet → haiku; shown in the header) |
+| ⌘M | Open the session's model/thinking picker. The compact chip remains model + thinking level; it does not show the harness |
 | ⌃` | Toggle a shell terminal pane beside the conversation (opens in the agent's working directory; keeps shell state per session) |
 | ⌘⇧D | Toggle a diff pane showing uncommitted changes in the agent's directory (shares the side slot with the terminal) |
 | esc / ⇥ | Back to the management panel |
@@ -90,9 +89,10 @@ mode (an explicit state machine, `OverlayInteractionModel`), never globally.
 
 ## Build & run
 
-Requirements: macOS 14+, Xcode command-line tools, and a working
-[Claude Code](https://claude.com/claude-code) install (`claude` on your PATH
-or in a standard location; you must be logged in).
+Requirements: macOS 14+, Xcode command-line tools, and at least one working
+coding harness: [Codex CLI](https://developers.openai.com/codex/cli) (`codex`)
+or [Claude Code](https://claude.com/claude-code) (`claude`). The selected CLI
+must be installed and logged in.
 
 ```bash
 make            # build build/Overlay.app
@@ -113,8 +113,9 @@ The settings window opens automatically and gates the overlay until:
 1. **Microphone** and **Speech Recognition** are granted (each has a Grant /
    Open Settings button and is re-checked every 2s — macOS provides no grant
    notification).
-2. **Claude Code** is detected and launches (`claude --version`). A custom
-   executable path and the agents' working directory are configurable here.
+2. At least one coding harness is detected and launches (`codex --version` or
+   `claude --version`). Custom executable paths and the agents' working
+   directory are configurable here.
 
 If a permission is denied the overlay stays disabled; the window explains
 what's missing and lets you retry.
@@ -130,6 +131,9 @@ Sources/
     AgentModels.swift          AgentProvider/AgentRun abstraction, session + chat models
     ClaudeCodeLauncher.swift   pure: executable discovery, argv, prompt/title building
     ClaudeCodeProvider.swift   process spawn, stream-json pump, teardown
+    CodexLauncher.swift        pure: executable discovery, exec/resume argv
+    CodexProvider.swift        process-per-turn Codex exec lifecycle
+    CodexStreamJSON.swift      pure: Codex JSONL event decoding
     StreamJSON.swift           pure: wire protocol encode/decode (incl. can_use_tool)
     OverlayInteractionModel.swift  pure keyboard state machine (mode -> commands)
     SessionStore.swift         persistence: sessions.json + per-session transcripts
@@ -169,8 +173,17 @@ State is never scraped from terminal output; it derives entirely from the
 structured stream, and the UI is decoupled from the provider behind
 `AgentProvider`/`AgentRun`.
 
+### Codex integration
+
+Codex sessions use the stable non-interactive CLI interface. Each turn launches
+`codex exec --json --sandbox workspace-write`; resumed turns receive the same
+sandbox through a config override. The emitted `thread.started`
+identifier is persisted and later messages use `codex exec resume <id>`. JSONL
+agent messages, command executions, file changes, and completion/failure events
+feed the same transcript and session-state model as Claude Code. Codex exec uses
+a pre-set sandbox policy rather than interactive approval requests.
+
 ## Known MVP limitations
 
 - ⌥Tab is not yet remappable (no conflict observed with stock macOS).
 - Tool approvals allow/deny the specific request only; no "always allow" rules.
-- One provider (Claude Code); the abstraction is ready for more.

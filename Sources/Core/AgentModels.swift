@@ -1,5 +1,23 @@
 import Foundation
 
+// MARK: - Harness configuration
+
+/// Coding-agent harnesses available when a session is created. The raw value
+/// is also the provider id persisted in `AgentSessionMeta`.
+enum AgentHarness: String, CaseIterable, Codable, Identifiable, Equatable {
+    case codex
+    case claudeCode = "claude-code"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .codex: return "Codex"
+        case .claudeCode: return "Claude Code"
+        }
+    }
+}
+
 // MARK: - Agent state
 
 /// Lifecycle state of an agent session as shown in the management panel.
@@ -40,8 +58,8 @@ struct AgentSessionMeta: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     /// Which provider owns this session (e.g. "claude-code").
     var providerID: String
-    /// The provider's own session identifier (Claude Code session UUID),
-    /// used for --resume. Nil until the provider reports it.
+    /// The harness's own session/thread identifier, used for resume. Nil
+    /// until the harness reports it.
     var providerSessionID: String?
     /// Short human title, derived from the initial prompt.
     var title: String
@@ -102,6 +120,9 @@ protocol AgentRun: AnyObject {
     func send(text: String)
     /// Switch the model for subsequent turns of this live conversation.
     func setModel(_ model: String)
+    /// Switch the thinking effort for subsequent turns when the harness can
+    /// apply it without restarting the session process.
+    func setEffort(_ effort: String?)
     /// Abort the in-flight turn; the session stays alive for follow-ups.
     func interrupt()
     /// Answer a pending tool-approval request.
@@ -110,10 +131,14 @@ protocol AgentRun: AnyObject {
     func terminate()
 }
 
-/// A coding-agent provider (Claude Code today; Codex etc. later).
+/// A coding-agent provider backed by one installed harness.
 protocol AgentProvider: AnyObject {
-    var id: String { get }
-    var displayName: String { get }
+    var harness: AgentHarness { get }
+    /// Model aliases offered in the picker; nil means the harness default.
+    var modelOptions: [String?] { get }
+    /// Thinking levels valid for the selected model. An empty array hides the
+    /// thinking section.
+    func effortOptions(for model: String?) -> [String?]
     /// Verify the provider's executable can be found and launched.
     func checkHealth() async -> ProviderHealth
     /// Start a new conversation, or resume an existing provider session when
@@ -134,5 +159,8 @@ protocol AgentProvider: AnyObject {
 }
 
 extension AgentProvider {
+    var id: String { harness.rawValue }
+    var displayName: String { harness.displayName }
+    func supportsEffort(model: String?) -> Bool { !effortOptions(for: model).isEmpty }
     func generateTitle(forPrompt prompt: String) async -> String? { nil }
 }

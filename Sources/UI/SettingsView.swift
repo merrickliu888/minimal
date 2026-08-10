@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Conventional onboarding/settings window: macOS permissions and the
-/// Claude Code connection. The runtime experience stays in the overlay.
+/// Conventional onboarding/settings window: macOS permissions and coding
+/// harness connections. The runtime experience stays in the overlay.
 struct SettingsView: View {
     @EnvironmentObject var permissions: PermissionsManager
     @ObservedObject var settingsModel: SettingsModel
@@ -11,7 +11,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Overlay Setup")
                     .font(.title2.weight(.semibold))
-                Text("Grant the required permissions and connect Claude Code, then summon the overlay with ⌥Space from any app.")
+                Text("Grant the required permissions and connect at least one coding harness, then summon the overlay with ⌥Space from any app.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -36,61 +36,38 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             }
 
-            GroupBox("Claude Code") {
+            GroupBox("Coding harnesses — one required") {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(settingsModel.health?.isConnected == true ? Color.green : Theme.failure)
-                            .frame(width: 9, height: 9)
-                        Text(settingsModel.health?.isConnected == true ? "Connected" : "Not connected")
-                            .font(.system(size: 12, weight: .medium))
-                        if settingsModel.checking {
-                            ProgressView().controlSize(.small).padding(.leading, 4)
-                        }
-                        Spacer()
-                        Button("Recheck") { settingsModel.recheck() }
-                            .controlSize(.small)
-                    }
-                    if let health = settingsModel.health {
-                        if health.isConnected {
-                            Text(health.detail)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        } else {
-                            VStack(alignment: .leading, spacing: 3) {
-                                if let error = health.errorMessage {
-                                    Text(error).font(.system(size: 11)).foregroundStyle(Theme.failure)
-                                }
-                                if let fix = health.remediation {
-                                    Text(fix).font(.system(size: 11)).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                    LabeledContent("Executable path (optional)") {
-                        TextField("auto-detect", text: $settingsModel.configuredPath)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 11, design: .monospaced))
-                            .onSubmit { settingsModel.saveAndRecheck() }
-                    }
-                    LabeledContent("Agent working directory") {
-                        TextField(NSHomeDirectory(), text: $settingsModel.workingDirectory)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 11, design: .monospaced))
-                            .onSubmit { settingsModel.saveWorkingDirectory() }
-                    }
+                    harnessRow(
+                        harness: .codex,
+                        configuredPath: $settingsModel.codexConfiguredPath
+                    )
+                    Divider().opacity(0.4)
+                    harnessRow(
+                        harness: .claudeCode,
+                        configuredPath: $settingsModel.claudeConfiguredPath
+                    )
+                }
+                .padding(.vertical, 4)
+            }
+
+            GroupBox("Agent defaults") {
+                LabeledContent("Working directory") {
+                    TextField(NSHomeDirectory(), text: $settingsModel.workingDirectory)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11, design: .monospaced))
+                        .onSubmit { settingsModel.saveWorkingDirectory() }
                 }
                 .padding(.vertical, 4)
             }
 
             HStack {
-                if permissions.allGranted && settingsModel.health?.isConnected == true {
+                if permissions.allGranted && settingsModel.hasConnectedProvider {
                     Label("Ready — press ⌥Space anywhere to start an agent, ⌥Tab to manage agents.", systemImage: "checkmark.circle.fill")
                         .font(.system(size: 12))
                         .foregroundStyle(.green)
                 } else {
-                    Label("The overlay is disabled until everything above is green.", systemImage: "exclamationmark.circle")
+                    Label("The overlay needs both permissions and at least one connected harness.", systemImage: "exclamationmark.circle")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
@@ -106,6 +83,52 @@ struct SettingsView: View {
             settingsModel.recheck()
         }
         .onDisappear { permissions.stopPolling() }
+    }
+
+    @ViewBuilder
+    private func harnessRow(harness: AgentHarness, configuredPath: Binding<String>) -> some View {
+        let health = settingsModel.health[harness.rawValue]
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(health?.isConnected == true ? Color.green : Theme.failure)
+                    .frame(width: 9, height: 9)
+                Text(harness.displayName)
+                    .font(.system(size: 12, weight: .medium))
+                Text(health?.isConnected == true ? "Connected" : "Not connected")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                if settingsModel.checking {
+                    ProgressView().controlSize(.small).padding(.leading, 4)
+                }
+                Spacer()
+                Button("Recheck") { settingsModel.recheck() }
+                    .controlSize(.small)
+            }
+            if let health {
+                if health.isConnected {
+                    Text(health.detail)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                } else {
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let error = health.errorMessage {
+                            Text(error).font(.system(size: 11)).foregroundStyle(Theme.failure)
+                        }
+                        if let fix = health.remediation {
+                            Text(fix).font(.system(size: 11)).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            LabeledContent("Executable path (optional)") {
+                TextField("auto-detect", text: configuredPath)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .onSubmit { settingsModel.savePathsAndRecheck() }
+            }
+        }
     }
 
     @ViewBuilder
@@ -140,35 +163,54 @@ struct SettingsView: View {
 /// Backing model for the settings window.
 @MainActor
 final class SettingsModel: ObservableObject {
-    @Published var health: ProviderHealth?
+    @Published var health: [String: ProviderHealth] = [:]
     @Published var checking = false
-    @Published var configuredPath: String
+    @Published var claudeConfiguredPath: String
+    @Published var codexConfiguredPath: String
     @Published var workingDirectory: String
 
-    private let provider: AgentProvider
+    private let providers: [AgentProvider]
 
-    init(provider: AgentProvider) {
-        self.provider = provider
-        configuredPath = UserDefaults.standard.string(forKey: ClaudeCodeProvider.configuredPathKey) ?? ""
+    init(providers: [AgentProvider]) {
+        self.providers = providers
+        claudeConfiguredPath = UserDefaults.standard.string(forKey: ClaudeCodeProvider.configuredPathKey) ?? ""
+        codexConfiguredPath = UserDefaults.standard.string(forKey: CodexProvider.configuredPathKey) ?? ""
         workingDirectory = UserDefaults.standard.string(forKey: AgentCoordinator.workingDirectoryKey) ?? ""
+    }
+
+    var hasConnectedProvider: Bool {
+        health.values.contains { $0.isConnected }
     }
 
     func recheck() {
         checking = true
         Task { @MainActor in
-            health = await provider.checkHealth()
+            await checkAll()
             checking = false
         }
     }
 
-    func saveAndRecheck() {
-        let trimmed = configuredPath.trimmingCharacters(in: .whitespaces)
-        if trimmed.isEmpty {
-            UserDefaults.standard.removeObject(forKey: ClaudeCodeProvider.configuredPathKey)
-        } else {
-            UserDefaults.standard.set(trimmed, forKey: ClaudeCodeProvider.configuredPathKey)
+    func checkAll() async {
+        var results: [String: ProviderHealth] = [:]
+        for provider in providers {
+            results[provider.id] = await provider.checkHealth()
         }
+        health = results
+    }
+
+    func savePathsAndRecheck() {
+        savePath(claudeConfiguredPath, key: ClaudeCodeProvider.configuredPathKey)
+        savePath(codexConfiguredPath, key: CodexProvider.configuredPathKey)
         recheck()
+    }
+
+    private func savePath(_ path: String, key: String) {
+        let trimmed = path.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            UserDefaults.standard.removeObject(forKey: key)
+        } else {
+            UserDefaults.standard.set(trimmed, forKey: key)
+        }
     }
 
     func saveWorkingDirectory() {
