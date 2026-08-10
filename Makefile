@@ -7,6 +7,8 @@ MIN_MACOS = 15.0
 ICON_SOURCE = Assets/minimal-logo.png
 ICONSET_DIR = $(BUILD_DIR)/Minimal.iconset
 ICON_FILE = $(BUILD_DIR)/Minimal.icns
+TERMINAL_FONT = Assets/Fonts/JetBrainsMonoNerdFontMono-Regular.ttf
+TERMINAL_FONT_LICENSE = Assets/Fonts/OFL-JetBrainsMonoNerdFont.txt
 
 SOURCES = $(shell find Sources -name '*.swift' -type f | LC_ALL=C sort)
 TEST_SOURCES = $(shell find Tests -name '*.swift' -type f | LC_ALL=C sort) \
@@ -36,9 +38,9 @@ all: app
 
 # The app is built with SwiftPM (external dependency: Textual for markdown
 # rendering); the bundle is still assembled by hand.
-app: $(SOURCES) Package.swift Info.plist Minimal.entitlements $(ICON_FILE)
+app: $(SOURCES) Package.swift Info.plist Minimal.entitlements $(ICON_FILE) $(TERMINAL_FONT) $(TERMINAL_FONT_LICENSE)
 	swift build -c release
-	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
+	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)" "$(RESOURCES)/Fonts"
 	@cp "$(SPM_BIN)/$(APP_NAME)" "$(MACOS_DIR)/$(APP_NAME)"
 	@# SwiftPM resource bundles (e.g. Textual's syntax highlighter grammars)
 	@# must sit in Contents/Resources for Bundle.module to resolve. SwiftPM
@@ -49,6 +51,8 @@ app: $(SOURCES) Package.swift Info.plist Minimal.entitlements $(ICON_FILE)
 		cp -R "$$b" "$(RESOURCES)/"; \
 	done
 	@cp "$(ICON_FILE)" "$(RESOURCES)/"
+	@cp "$(TERMINAL_FONT)" "$(RESOURCES)/Fonts/"
+	@cp "$(TERMINAL_FONT_LICENSE)" "$(RESOURCES)/Fonts/"
 	@cp Info.plist "$(CONTENTS)/"
 	@plutil -replace CFBundleName -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"
 	@plutil -replace CFBundleDisplayName -string "$(APP_NAME)" "$(CONTENTS)/Info.plist"

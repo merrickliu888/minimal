@@ -14,7 +14,7 @@ final class TerminalCache {
     func view(for sessionID: UUID, workingDirectory: String) -> LocalProcessTerminalView {
         if let existing = views[sessionID] { return existing }
         let view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 424, height: 560))
-        view.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        view.font = BundledFonts.terminalFont(size: 12)
         // Keep SwiftTerm transparent so the same overlayCard material used by
         // the agent viewer is the only surface rendered behind both panes.
         let background = NSColor.clear

@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var providerConnected = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        BundledFonts.register()
         permissions.refresh()
 
         minimalController.canUseMinimal = { [weak self] in
