@@ -24,22 +24,29 @@ struct SessionModelPane: View {
             .padding(.vertical, 10)
             Divider().opacity(0.4)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    sectionLabel("MODEL — applies immediately")
-                    ForEach(Array(controller.sessionConcreteModels.enumerated()), id: \.offset) { index, model in
-                        row(index: index, title: model, active: meta?.model == model)
-                    }
-                    if controller.sessionPaneShowsThinking {
-                        sectionLabel("THINKING — applies on next restart")
-                        ForEach(Array(controller.sessionEffortOptions.enumerated()), id: \.offset) { index, effort in
-                            row(index: controller.sessionConcreteModels.count + index,
-                                title: effort ?? "default",
-                                active: meta?.effort == effort)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        sectionLabel("MODEL — applies immediately")
+                        ForEach(Array(controller.sessionConcreteModels.enumerated()), id: \.offset) { index, model in
+                            row(index: index, title: model, active: meta?.model == model)
+                        }
+                        if controller.sessionPaneShowsThinking {
+                            sectionLabel("THINKING — applies on next restart")
+                            ForEach(Array(controller.sessionEffortOptions.enumerated()), id: \.offset) { index, effort in
+                                row(index: controller.sessionConcreteModels.count + index,
+                                    title: effort ?? "default",
+                                    active: meta?.effort == effort)
+                            }
                         }
                     }
+                    .padding(.vertical, 6)
                 }
-                .padding(.vertical, 6)
+                .onChange(of: controller.modelSelectedIndex) { _, index in
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        proxy.scrollTo(index, anchor: .center)
+                    }
+                }
             }
 
             Divider().opacity(0.4)
@@ -86,5 +93,6 @@ struct SessionModelPane: View {
                 .strokeBorder(selected ? Theme.accent.opacity(0.75) : .clear, lineWidth: 1)
                 .padding(.horizontal, 6)
         )
+        .id(index)
     }
 }

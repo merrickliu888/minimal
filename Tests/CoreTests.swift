@@ -355,6 +355,12 @@ func testCodexExecutableResolution() {
 }
 
 func testCodexArguments() {
+    expectEqual(
+        CodexLauncher.modelOptions,
+        [nil, "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"],
+        "Codex picker exposes only the GPT-5.6 family plus the CLI default"
+    )
+
     let initial = CodexLauncher.arguments(
         prompt: "fix it", resumeSessionID: nil,
         model: "gpt-5.6-sol", effort: "high"

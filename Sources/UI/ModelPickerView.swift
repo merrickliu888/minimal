@@ -10,31 +10,38 @@ struct ModelPickerView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider().opacity(0.4)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    sectionLabel("HARNESS")
-                    ForEach(Array(controller.harnessOptions.enumerated()), id: \.offset) { index, harness in
-                        row(index: index, title: harness.displayName,
-                            subtitle: nil,
-                            active: controller.draftHarness == harness)
-                    }
-                    sectionLabel("MODEL")
-                    ForEach(Array(controller.draftModelOptions.enumerated()), id: \.offset) { index, model in
-                        row(index: controller.harnessOptions.count + index, title: model ?? "default",
-                            subtitle: model == nil ? "your \(controller.draftHarness.displayName) default" : nil,
-                            active: controller.draftModel == model)
-                    }
-                    if controller.modelPickerShowsThinking {
-                        sectionLabel("THINKING")
-                        ForEach(Array(controller.draftEffortOptions.enumerated()), id: \.offset) { index, effort in
-                            row(index: controller.harnessOptions.count + controller.draftModelOptions.count + index,
-                                title: effort ?? "default",
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        sectionLabel("HARNESS")
+                        ForEach(Array(controller.harnessOptions.enumerated()), id: \.offset) { index, harness in
+                            row(index: index, title: harness.displayName,
                                 subtitle: nil,
-                                active: controller.draftEffort == effort)
+                                active: controller.draftHarness == harness)
+                        }
+                        sectionLabel("MODEL")
+                        ForEach(Array(controller.draftModelOptions.enumerated()), id: \.offset) { index, model in
+                            row(index: controller.harnessOptions.count + index, title: model ?? "default",
+                                subtitle: model == nil ? "your \(controller.draftHarness.displayName) default" : nil,
+                                active: controller.draftModel == model)
+                        }
+                        if controller.modelPickerShowsThinking {
+                            sectionLabel("THINKING")
+                            ForEach(Array(controller.draftEffortOptions.enumerated()), id: \.offset) { index, effort in
+                                row(index: controller.harnessOptions.count + controller.draftModelOptions.count + index,
+                                    title: effort ?? "default",
+                                    subtitle: nil,
+                                    active: controller.draftEffort == effort)
+                            }
                         }
                     }
+                    .padding(.vertical, 6)
                 }
-                .padding(.vertical, 6)
+                .onChange(of: controller.modelSelectedIndex) { _, index in
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        proxy.scrollTo(index, anchor: .center)
+                    }
+                }
             }
             .frame(maxHeight: 360)
             Divider().opacity(0.4)
@@ -92,6 +99,7 @@ struct ModelPickerView: View {
                 .strokeBorder(selected ? Theme.accent.opacity(0.75) : .clear, lineWidth: 1)
                 .padding(.horizontal, 6)
         )
+        .id(index)
     }
 
     private var footer: some View {
