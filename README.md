@@ -1,6 +1,7 @@
 <div align="center">
   <img src="Assets/minimal-logo-transparent.png" alt="minimal-logo" width="75">  
   <h1>Minimal</h1>
+  <p>A simple, shortcut driven client for Claude Code and Codex.</p>
 </div>
 
 A macOS overlay for creating and managing AI coding agents without leaving
@@ -122,71 +123,3 @@ The settings window opens automatically and gates the overlay until:
 
 If a permission is denied the overlay stays disabled; the window explains
 what's missing and lets you retry.
-
-## Architecture
-
-```
-Sources/
-  App.swift                    SwiftUI @main, MenuBarExtra (LSUIElement app)
-  AppDelegate.swift            wiring, settings window, activation policy
-  HotkeyManager.swift          Carbon RegisterEventHotKey (no Accessibility needed)
-  Core/
-    AgentModels.swift          AgentProvider/AgentRun abstraction, session + chat models
-    ClaudeCodeLauncher.swift   pure: executable discovery, argv, prompt/title building
-    ClaudeCodeProvider.swift   process spawn, stream-json pump, teardown
-    CodexLauncher.swift        pure: executable discovery, exec/resume argv
-    CodexProvider.swift        process-per-turn Codex exec lifecycle
-    CodexStreamJSON.swift      pure: Codex JSONL event decoding
-    StreamJSON.swift           pure: wire protocol encode/decode (incl. can_use_tool)
-    MinimalInteractionModel.swift  pure keyboard state machine (mode -> commands)
-    SessionStore.swift         persistence: sessions.json + per-session transcripts
-    AgentCoordinator.swift     live runs <-> store bridge, start/resume/archive
-    Transcriber.swift          SFSpeechRecognizer + AVAudioEngine, level metering
-    PermissionsManager.swift   TCC status, requests, polling
-  UI/
-    MinimalPanel.swift         non-activating key-capable NSPanel
-    MinimalController.swift    panels, key routing, command execution
-    PromptPillView.swift       waveform pill <-> editable field
-    AgentPanelView.swift       Needs Input / Running / Failed sections
-    ConversationView.swift     transcript, approval bar, composer
-    SettingsView.swift         onboarding/settings
-    Theme.swift                grays, light-blue accent, vibrancy chrome
-Tests/
-    CoreTests.swift            hand-rolled runner over the pure core (make test)
-```
-
-### Claude Code integration
-
-Each session is a `claude -p --input-format stream-json --output-format
-stream-json` child process (stdin/stdout JSON lines):
-
-- `system/init` → provider session id (persisted; later used with `--resume`)
-- `assistant` text / `tool_use` blocks → transcript rows
-- `result` → turn over → **Needs Input** (or **Failed** on `is_error`)
-- `control_request` (`can_use_tool`, enabled via `--permission-prompt-tool
-  stdio`; sessions run in `auto` permission mode, so a classifier reviews
-  most prompts and only escalations reach the overlay) → pending approval →
-  **Needs Input**; answered on stdin with allow/deny
-- `AskUserQuestion` is disallowed so questions arrive as plain text and end
-  the turn — which the panel already surfaces as Needs Input.
-- Parent-session env vars (`CLAUDECODE`, …) are stripped so the app works
-  when launched from inside a Claude Code session during development.
-
-State is never scraped from terminal output; it derives entirely from the
-structured stream, and the UI is decoupled from the provider behind
-`AgentProvider`/`AgentRun`.
-
-### Codex integration
-
-Codex sessions use the stable non-interactive CLI interface. Each turn launches
-`codex exec --json --sandbox workspace-write`; resumed turns receive the same
-sandbox through a config override. The emitted `thread.started`
-identifier is persisted and later messages use `codex exec resume <id>`. JSONL
-agent messages, command executions, file changes, and completion/failure events
-feed the same transcript and session-state model as Claude Code. Codex exec uses
-a pre-set sandbox policy rather than interactive approval requests.
-
-## Known MVP limitations
-
-- ⌥Tab is not yet remappable (no conflict observed with stock macOS).
-- Tool approvals allow/deny the specific request only; no "always allow" rules.

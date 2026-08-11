@@ -39,8 +39,6 @@ enum GitInfo {
     }
 }
 
-// MARK: - Unified diff model (Paseo-style typed lines)
-
 struct DiffLine: Identifiable, Equatable {
     enum Kind: Equatable {
         /// "diff --git …" — starts a new file section; text is the file path.
@@ -70,9 +68,10 @@ extension GitInfo {
             let entry: DiffLine?
             if line.hasPrefix("diff --git") {
                 // "diff --git a/old b/new" -> show the new path.
-                let path = line.split(separator: " ").last.map {
-                    $0.hasPrefix("b/") ? String($0.dropFirst(2)) : String($0)
-                } ?? line
+                let path =
+                    line.split(separator: " ").last.map {
+                        $0.hasPrefix("b/") ? String($0.dropFirst(2)) : String($0)
+                    } ?? line
                 entry = DiffLine(id: id, kind: .fileHeader, text: path)
             } else if line.hasPrefix("@@") {
                 entry = DiffLine(id: id, kind: .hunk, text: line)
@@ -80,16 +79,20 @@ extension GitInfo {
                 || line.hasPrefix("new file") || line.hasPrefix("deleted file")
                 || line.hasPrefix("similarity") || line.hasPrefix("rename")
                 || line.hasPrefix("old mode") || line.hasPrefix("new mode")
-                || line.hasPrefix("Binary files") {
-                entry = line.hasPrefix("Binary files")
+                || line.hasPrefix("Binary files")
+            {
+                entry =
+                    line.hasPrefix("Binary files")
                     ? DiffLine(id: id, kind: .context, text: line)
-                    : nil // meta noise
+                    : nil  // meta noise
             } else if line.hasPrefix("+") {
                 entry = DiffLine(id: id, kind: .add, text: String(line.dropFirst()))
             } else if line.hasPrefix("-") {
                 entry = DiffLine(id: id, kind: .remove, text: String(line.dropFirst()))
             } else {
-                entry = DiffLine(id: id, kind: .context, text: line.hasPrefix(" ") ? String(line.dropFirst()) : line)
+                entry = DiffLine(
+                    id: id, kind: .context,
+                    text: line.hasPrefix(" ") ? String(line.dropFirst()) : line)
             }
             if let entry {
                 lines.append(entry)

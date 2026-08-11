@@ -30,8 +30,6 @@ struct InlineToken: Equatable {
     let query: String
 }
 
-/// Pure detection/replacement for inline `@file` and `/command` triggers,
-/// mirroring Paseo's composer semantics.
 enum InlineTrigger {
 
     // MARK: - Detection
@@ -100,17 +98,22 @@ enum InlineTrigger {
     /// when the token ends the text.
     static func replacingFileMention(text: String, token: InlineToken, path: String) -> String {
         let needsQuotes = path.contains(where: \.isWhitespace) || path.contains("\"")
-        let mention = needsQuotes ? "@\"\(path.replacingOccurrences(of: "\"", with: "\\\""))\"" : "@\(path)"
+        let mention =
+            needsQuotes ? "@\"\(path.replacingOccurrences(of: "\"", with: "\\\""))\"" : "@\(path)"
         return replace(text: text, token: token, with: mention)
     }
 
     /// Replace a slash-command token with `/name` plus a trailing space when
     /// the token ends the text.
-    static func replacingSlashCommand(text: String, token: InlineToken, commandName: String) -> String {
+    static func replacingSlashCommand(text: String, token: InlineToken, commandName: String)
+        -> String
+    {
         replace(text: text, token: token, with: "/\(commandName)")
     }
 
-    private static func replace(text: String, token: InlineToken, with replacement: String) -> String {
+    private static func replace(text: String, token: InlineToken, with replacement: String)
+        -> String
+    {
         let chars = Array(text)
         let start = max(0, min(token.start, chars.count))
         let end = max(start, min(token.end, chars.count))
@@ -133,33 +136,47 @@ enum InlineTrigger {
             let name = ((path as NSString).lastPathComponent).lowercased()
             let full = path.lowercased()
             let rank: Int
-            if name.hasPrefix(q) { rank = 0 }
-            else if name.contains(q) { rank = 1 }
-            else if full.contains(q) { rank = 2 }
-            else { continue }
+            if name.hasPrefix(q) {
+                rank = 0
+            } else if name.contains(q) {
+                rank = 1
+            } else if full.contains(q) {
+                rank = 2
+            } else {
+                continue
+            }
             ranked.append((rank, path))
         }
-        return ranked
+        return
+            ranked
             .sorted { ($0.rank, $0.path.count, $0.path) < ($1.rank, $1.path.count, $1.path) }
             .prefix(limit)
             .map(\.path)
     }
 
     /// Rank commands by name: prefix beats substring beats description hit.
-    static func filterCommands(_ commands: [SlashCommand], query: String, limit: Int = 8) -> [SlashCommand] {
+    static func filterCommands(_ commands: [SlashCommand], query: String, limit: Int = 8)
+        -> [SlashCommand]
+    {
         let q = query.lowercased()
         guard !q.isEmpty else { return Array(commands.prefix(limit)) }
         var ranked: [(rank: Int, command: SlashCommand)] = []
         for command in commands {
             let name = command.name.lowercased()
             let rank: Int
-            if name.hasPrefix(q) { rank = 0 }
-            else if name.contains(q) { rank = 1 }
-            else if command.description.lowercased().contains(q) { rank = 2 }
-            else { continue }
+            if name.hasPrefix(q) {
+                rank = 0
+            } else if name.contains(q) {
+                rank = 1
+            } else if command.description.lowercased().contains(q) {
+                rank = 2
+            } else {
+                continue
+            }
             ranked.append((rank, command))
         }
-        return ranked
+        return
+            ranked
             .sorted { ($0.rank, $0.command.name) < ($1.rank, $1.command.name) }
             .prefix(limit)
             .map(\.command)

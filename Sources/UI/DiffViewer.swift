@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Right-side pane showing uncommitted changes in the session's working
-/// directory as a colored unified diff (Paseo-style typed line rows).
 struct DiffViewerView: View {
     let lines: [DiffLine]
     let isEmpty: Bool
