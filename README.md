@@ -4,6 +4,10 @@
   <p>A simple, shortcut driven client for Claude Code and Codex.</p>
 </div>
 
+<div align="center">
+  <img src="Assets/empty-menu.png" alt="Agent Menu" width="720">
+</div>
+
 ## Overview
 
 ## Features
