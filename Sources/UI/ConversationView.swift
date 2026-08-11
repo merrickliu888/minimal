@@ -11,6 +11,9 @@ struct ConversationView: View {
 
     private var sessionID: UUID? { controller.openSessionID }
     private var meta: AgentSessionMeta? { sessionID.flatMap { store.session(id: $0) } }
+    private var transcriptBaseURL: URL? {
+        TranscriptLinks.baseURL(workingDirectory: meta?.workingDirectory)
+    }
 
     var body: some View {
         HStack(spacing: 16) {
@@ -99,7 +102,7 @@ struct ConversationView: View {
             LazyVStack(alignment: .leading, spacing: 10) {
                 if let sessionID {
                     ForEach(store.transcript(for: sessionID)) { message in
-                        MessageRow(message: message)
+                        MessageRow(message: message, baseURL: transcriptBaseURL)
                             .id(message.id)
                     }
                 }
@@ -192,6 +195,7 @@ struct ConversationView: View {
 
 struct MessageRow: View {
     let message: ChatMessage
+    let baseURL: URL?
 
     var body: some View {
         switch message.role {
@@ -212,7 +216,7 @@ struct MessageRow: View {
         case .assistant:
             // Textual renders the markdown Claude emits (code blocks with
             // syntax highlighting, lists, tables) with native text selection.
-            StructuredText(markdown: message.text)
+            StructuredText(markdown: message.text, baseURL: baseURL)
                 .font(.system(size: 12.5))
                 .frame(maxWidth: .infinity, alignment: .leading)
 

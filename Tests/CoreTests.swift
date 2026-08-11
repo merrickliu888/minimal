@@ -569,6 +569,21 @@ func testInlineFiltering() {
     expectEqual(InlineTrigger.filterCommands(commands, query: "").count, 3, "empty query returns all")
 }
 
+// MARK: - Transcript link tests
+
+func testTranscriptFileLinks() {
+    let workingDirectory = "/Users/example/project"
+    let markdown = "[App.swift](/Users/example/project/Sources/App.swift)"
+    let rendered = try! AttributedString(
+        markdown: markdown,
+        baseURL: TranscriptLinks.baseURL(workingDirectory: workingDirectory)
+    )
+    let link = rendered.runs.compactMap(\.link).first
+
+    expectEqual(link?.scheme, "file", "absolute transcript path uses the file URL scheme")
+    expectEqual(link?.path, "/Users/example/project/Sources/App.swift", "file link keeps its absolute path")
+}
+
 func testInitializeProtocol() {
     let encoded = StreamJSON.encodeInitialize(requestID: "init-1")!
     let decoded = try! JSONSerialization.jsonObject(with: encoded.data(using: .utf8)!) as! [String: Any]
@@ -618,6 +633,7 @@ struct TestRunner {
         testInlineTokenDetection()
         testInlineReplacement()
         testInlineFiltering()
+        testTranscriptFileLinks()
         testInitializeProtocol()
 
         if failureCount > 0 {
