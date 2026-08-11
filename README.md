@@ -14,3 +14,25 @@
 
 ## Privacy
 
+## Gallery
+
+<div align="center">
+  <img src="Assets/empty-menu-transcription.png" alt="Voice transcription" width="720">
+  <p><em>Voice transcription</em></p>
+</div>
+
+<div align="center">
+  <img src="Assets/agent-viewer.png" alt="Agent conversation" width="720">
+  <p><em>Agent viewer</em></p>
+</div>
+
+<div align="center">
+  <img src="Assets/agent-viewer-terminal.png" alt="Agent viewer with terminal" width="720">
+  <p><em>Agent viewer with terminal</em></p>
+</div>
+
+<div align="center">
+  <img src="Assets/agent-viewer-diffs.png" alt="Agent viewer with diffs" width="720">
+  <p><em>Agent viewer with diffs</em></p>
+</div>
+
