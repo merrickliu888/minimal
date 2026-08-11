@@ -9,7 +9,7 @@
 </div>
 
 ## Quick Start
-1. Install Claude Code and Codex.
+1. Install [Claude Code](https://code.claude.com/docs/en/quickstart#step-1-install-claude-code) or [Codex](https://learn.chatgpt.com/docs/codex/cli#getting-started).
 2. Download Minimal (Apple Silicon or Intel).
 3. Open app. Note not signed with a dev id, so ...
 4. Grant permissions.
