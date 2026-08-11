@@ -10,8 +10,8 @@
 
 ## Quick Start
 1. Install [Claude Code](https://code.claude.com/docs/en/quickstart#step-1-install-claude-code) or [Codex](https://learn.chatgpt.com/docs/codex/cli#getting-started).
-2. Download Minimal (Apple Silicon or Intel).
-3. Open app. Note not signed with a dev id, so ...
+2. Download Minimal for [Apple Silicon](https://github.com/merrickliu888/minimal/releases/download/v0.1.0/Minimal-0.1.0-Apple-Silicon.dmg) or [Intel](https://github.com/merrickliu888/minimal/releases/download/v0.1.0/Minimal-0.1.0-Intel.dmg).
+3. Open the DMG and drag Minimal into Applications. The app is not signed with an Apple Developer ID, so after macOS blocks the first launch, open **System Settings → Privacy & Security**, scroll to **Security**, click **Open Anyway**, then confirm **Open**.
 4. Grant permissions.
 5. `⌥Space` to open the hud.
 
