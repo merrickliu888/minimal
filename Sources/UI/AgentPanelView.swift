@@ -63,22 +63,30 @@ struct AgentPanelView: View {
         let running = sessions.filter { $0.state == .running }
         let failed = sessions.filter { $0.state == .failed }
 
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                if !needsInput.isEmpty {
-                    sectionLabel("NEEDS INPUT")
-                    ForEach(needsInput) { row(for: $0, in: sessions) }
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    if !needsInput.isEmpty {
+                        sectionLabel("NEEDS INPUT")
+                        ForEach(needsInput) { row(for: $0, in: sessions) }
+                    }
+                    if !running.isEmpty {
+                        sectionLabel("RUNNING")
+                        ForEach(running) { row(for: $0, in: sessions) }
+                    }
+                    if !failed.isEmpty {
+                        sectionLabel("FAILED")
+                        ForEach(failed) { row(for: $0, in: sessions) }
+                    }
                 }
-                if !running.isEmpty {
-                    sectionLabel("RUNNING")
-                    ForEach(running) { row(for: $0, in: sessions) }
-                }
-                if !failed.isEmpty {
-                    sectionLabel("FAILED")
-                    ForEach(failed) { row(for: $0, in: sessions) }
+                .padding(.vertical, 6)
+            }
+            .onChange(of: controller.selectedIndex) { _, index in
+                guard sessions.indices.contains(index) else { return }
+                withAnimation(.easeOut(duration: 0.12)) {
+                    proxy.scrollTo(sessions[index].id, anchor: .center)
                 }
             }
-            .padding(.vertical, 6)
         }
         .frame(maxHeight: 320)
     }
@@ -136,6 +144,7 @@ struct AgentPanelView: View {
                 .strokeBorder(selected ? Theme.accent.opacity(0.75) : .clear, lineWidth: 1)
                 .padding(.horizontal, 6)
         )
+        .id(session.id)
     }
 
     @ViewBuilder
