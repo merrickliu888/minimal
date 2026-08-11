@@ -95,6 +95,32 @@ final class CodexProvider: AgentProvider {
         }
         return run
     }
+
+    /// One-shot, ephemeral Codex call that names the session without loading
+    /// the user's project instructions or persisting another resumable thread.
+    func generateTitle(forPrompt prompt: String) async -> String? {
+        guard let executable = resolvedExecutable else { return nil }
+        return await Task.detached(priority: .utility) { () -> String? in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: executable)
+            process.arguments = CodexLauncher.titleGenerationArguments(forPrompt: prompt)
+            process.currentDirectoryURL = FileManager.default.temporaryDirectory
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = FileHandle.nullDevice
+            do {
+                try process.run()
+            } catch {
+                return nil
+            }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0,
+                  let output = String(data: data, encoding: .utf8)
+            else { return nil }
+            return CodexLauncher.generatedTitle(from: output)
+        }.value
+    }
 }
 
 // MARK: - Live run

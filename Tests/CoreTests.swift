@@ -384,6 +384,21 @@ func testCodexArguments() {
     expect(resumed.contains(#"sandbox_mode="workspace-write""#), "resume pins workspace-write sandbox")
     expect(resumed.contains(#"approval_policy="on-request""#), "resume preserves Auto approval policy")
     expectEqual(resumed.last, "continue", "follow-up prompt present")
+
+    let titleArgs = CodexLauncher.titleGenerationArguments(forPrompt: "fix login")
+    expectEqual(titleArgs.first, "exec", "Codex title generation uses exec")
+    expect(titleArgs.contains("--ephemeral"), "Codex title session is not persisted")
+    expect(titleArgs.contains("--ignore-user-config"), "Codex title ignores user config")
+    expect(titleArgs.contains("--ignore-rules"), "Codex title ignores project instructions")
+    expect(titleArgs.contains("read-only"), "Codex title generation uses read-only sandbox")
+    expect(titleArgs.contains("gpt-5.6-luna"), "Codex title generation uses fast model")
+    expect(titleArgs.contains(#"model_reasoning_effort="low""#), "Codex title generation uses low effort")
+    expect(titleArgs.last?.contains("User prompt: fix login") == true, "title prompt includes task prompt")
+
+    expectEqual(CodexLauncher.generatedTitle(from: "  \"Fix login flow.\"\n"), "Fix login flow", "Codex title output normalized")
+    expectEqual(CodexLauncher.generatedTitle(from: ""), nil, "empty Codex title rejected")
+    expectEqual(CodexLauncher.generatedTitle(from: "first\nsecond"), nil, "multiline Codex title rejected")
+    expectEqual(CodexLauncher.generatedTitle(from: String(repeating: "x", count: 65)), nil, "long Codex title rejected")
 }
 
 func testCodexStreamParsing() {
@@ -584,6 +599,25 @@ func testTranscriptFileLinks() {
     expectEqual(link?.path, "/Users/example/project/Sources/App.swift", "file link keeps its absolute path")
 }
 
+func testTranscriptFileLinkOpening() {
+    let fileURL = URL(fileURLWithPath: "/Users/example/project/Sources/App.swift")
+    var openedURL: URL?
+    let result = TranscriptLinks.open(fileURL) { url in
+        openedURL = url
+        return true
+    }
+
+    expectEqual(result, .handled, "file link reports that the click was handled")
+    expectEqual(openedURL, fileURL, "file link is sent to the workspace opener")
+
+    let webURL = URL(string: "https://example.com")!
+    let webResult = TranscriptLinks.open(webURL) { _ in
+        expect(false, "web links should not be sent to the file opener")
+        return true
+    }
+    expectEqual(webResult, .systemAction, "web links keep SwiftUI system handling")
+}
+
 func testInitializeProtocol() {
     let encoded = StreamJSON.encodeInitialize(requestID: "init-1")!
     let decoded = try! JSONSerialization.jsonObject(with: encoded.data(using: .utf8)!) as! [String: Any]
@@ -634,6 +668,7 @@ struct TestRunner {
         testInlineReplacement()
         testInlineFiltering()
         testTranscriptFileLinks()
+        testTranscriptFileLinkOpening()
         testInitializeProtocol()
 
         if failureCount > 0 {

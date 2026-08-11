@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import Textual
 
@@ -219,6 +220,7 @@ struct MessageRow: View {
             StructuredText(markdown: message.text, baseURL: baseURL)
                 .font(.system(size: 12.5))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .environment(\.openURL, OpenURLAction(handler: openTranscriptURL))
 
         case .tool:
             HStack(alignment: .top, spacing: 8) {
@@ -265,6 +267,17 @@ struct MessageRow: View {
         case "WebFetch": return "globe"
         case "Task": return "person.2"
         default: return "wrench"
+        }
+    }
+
+    private func openTranscriptURL(_ url: URL) -> OpenURLAction.Result {
+        switch TranscriptLinks.open(url, fileOpener: { NSWorkspace.shared.open($0) }) {
+        case .handled:
+            return .handled
+        case .systemAction:
+            return .systemAction
+        case .failed:
+            return .discarded
         }
     }
 }
