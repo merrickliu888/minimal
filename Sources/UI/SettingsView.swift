@@ -11,9 +11,11 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Minimal Setup")
                     .font(.title2.weight(.semibold))
-                Text("Grant the required permissions and connect at least one coding harness, then summon the overlay with ⌥Space from any app.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                Text(
+                    "Grant the required permissions and connect at least one harness, then summon the overlay with ⌥Space from any app."
+                )
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
             }
 
             GroupBox("Permissions — all required") {
@@ -36,7 +38,7 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             }
 
-            GroupBox("Coding harnesses — one required") {
+            GroupBox("Harnesses") {
                 VStack(alignment: .leading, spacing: 10) {
                     harnessRow(
                         harness: .codex,
@@ -53,13 +55,19 @@ struct SettingsView: View {
 
             HStack {
                 if permissions.allGranted && settingsModel.hasConnectedProvider {
-                    Label("Ready — press ⌥Space anywhere to start an agent, ⌥Tab to manage agents.", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.green)
+                    Label(
+                        "Ready — press ⌥Space anywhere to start an agent, ⌥Tab to manage agents.",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                    .font(.system(size: 12))
+                    .foregroundStyle(.green)
                 } else {
-                    Label("The overlay needs both permissions and at least one connected harness.", systemImage: "exclamationmark.circle")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                    Label(
+                        "The overlay needs both permissions and at least one connected harness.",
+                        systemImage: "exclamationmark.circle"
+                    )
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
@@ -162,8 +170,10 @@ final class SettingsModel: ObservableObject {
 
     init(providers: [AgentProvider]) {
         self.providers = providers
-        claudeConfiguredPath = UserDefaults.standard.string(forKey: ClaudeCodeProvider.configuredPathKey) ?? ""
-        codexConfiguredPath = UserDefaults.standard.string(forKey: CodexProvider.configuredPathKey) ?? ""
+        claudeConfiguredPath =
+            UserDefaults.standard.string(forKey: ClaudeCodeProvider.configuredPathKey) ?? ""
+        codexConfiguredPath =
+            UserDefaults.standard.string(forKey: CodexProvider.configuredPathKey) ?? ""
     }
 
     var hasConnectedProvider: Bool {
