@@ -8,11 +8,21 @@
   <img src="Assets/empty-menu.png" alt="Agent Menu" width="720">
 </div>
 
+## Quick Start
+
 ## Overview
+
+Minimal is a native macOS app for running Claude Code and Codex from a lightweight HUD. Open it from anywhere with a keyboard shortcut, enter a prompt, and get back to your work.
 
 ## Features
 
+- **Quick access** - Open the prompt with `⌥Space` and manage agents with `⌥Tab`.
+- **Claude Code and Codex** - Choose the coding agent that fits your task.
+- **Voice prompts** - Speak prompts using Apple's on-device speech recognition.
+
 ## Privacy
+
+Minimal runs locally on your Mac. Voice transcription uses Apple's on-device Speech framework. The only data sent from your computer is the requests your coding agents make to their LLM providers.
 
 ## Gallery
 
@@ -35,4 +45,3 @@
   <img src="Assets/agent-viewer-diffs.png" alt="Agent viewer with diffs" width="720">
   <p><em>Agent viewer with diffs</em></p>
 </div>
-
