@@ -1,7 +1,7 @@
 <div align="center">
   <img src="Assets/minimal-logo-transparent.png" alt="minimal-logo" width="75">  
   <h1>Minimal</h1>
-  <p>A simple, shortcut driven client for Claude Code and Codex.</p>
+  <p>A simple, macOS native, shortcut driven client for Claude Code and Codex.</p>
 </div>
 
 <div align="center">
@@ -9,6 +9,11 @@
 </div>
 
 ## Quick Start
+1. Install Claude Code and Codex.
+2. Download Minimal (Apple Silicon or Intel).
+3. Open app. Note not signed with a dev id, so ...
+4. Grant permissions.
+5. `⌥Space` to open the hud.
 
 ## Overview
 
