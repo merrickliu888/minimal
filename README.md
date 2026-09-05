@@ -50,3 +50,8 @@ Minimal runs locally on your Mac. Voice transcription uses Apple's on-device Spe
   <img src="Assets/agent-viewer-diffs.png" alt="Agent viewer with diffs" width="720">
   <p><em>Agent viewer with diffs</em></p>
 </div>
+
+## Inspirations
+- [Paseo](https://github.com/getpaseo/paseo)
+- [FreeFlow](https://github.com/zachlatta/freeflow)
+- [Yap](https://github.com/FrigadeHQ/yap)
