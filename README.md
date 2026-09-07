@@ -27,46 +27,17 @@ Minimal is a native macOS app for running Claude Code and Codex from a lightweig
 
 ## Configuration
 
-Shortcuts are configurable. Minimal reads `~/.config/minimal/config.toml` at
-launch — without one, the defaults below apply. Copy
-[`config.example.toml`](config.example.toml) to get started:
+Shortcuts are configurable. On first launch Minimal writes
+`~/.config/minimal/config.toml` — every action, its default, and the format,
+with each line commented out so the defaults stay live.
 
-```sh
-mkdir -p ~/.config/minimal && curl -o ~/.config/minimal/config.toml \
-  https://raw.githubusercontent.com/merrickliu888/minimal/main/config.example.toml
-```
+You don't have to learn any of it. Point your coding agent at the file:
 
-```toml
-[shortcuts]
-new_agent = "opt+space"
-voice = "cmd+d"
-toggle_diff = "cmd+shift+d"
-```
+> Open `~/.config/minimal/config.toml` and make the voice prompt ⌘L.
 
-Only the lines you write are overridden; everything else keeps its default.
-Pick up an edit with **Reload Config** in the menu bar — no restart needed.
-
-| Action | Default | Does |
-| --- | --- | --- |
-| `new_agent` | `⌥Space` | Open the prompt (works in any app) |
-| `manage_agents` | `⌥Tab` | Open the agents panel (works in any app) |
-| `settings` | `⌘,` | Open the settings window |
-| `voice` | `⌘D` | Start/stop a voice prompt |
-| `project_picker` | `⌘P` | Pick the agent's project |
-| `model_picker` | `⌘M` | Pick harness, model and thinking level |
-| `toggle_terminal` | `` ⌃` `` | Show/hide the terminal pane |
-| `toggle_diff` | `⌘⇧D` | Show/hide uncommitted changes |
-| `stop_agent` | `⌃C` | Interrupt the running turn |
-| `allow_permission` | `⌘Y` | Allow a permission request |
-| `deny_permission` | `⌘N` | Deny a permission request |
-
-Values are modifiers and a key joined by `+` (`"cmd+shift+d"`); symbols work
-too (`"⌘⇧D"`). Modifiers are `cmd`/`command`, `opt`/`option`/`alt`,
-`ctrl`/`control` and `shift`. Keys are letters, digits, `f1`–`f20`,
-punctuation, or a name such as `space`, `tab`, `return`, `escape`, `delete` or
-an arrow. Each shortcut needs at least one of `cmd`, `opt` or `ctrl`, so a
-binding can never swallow ordinary typing. Entries Minimal can't use are
-ignored — it keeps that default and explains why in the settings window.
+The file documents itself, so the agent needs nothing else. Edit it by hand if
+you'd rather — uncomment the lines you want to change. Either way, pick the
+edit up with **Reload Config** in the menu bar; no restart needed.
 
 Minimal uses the first file that exists: `$MINIMAL_CONFIG`, then
 `~/.config/minimal/config.toml` (`$XDG_CONFIG_HOME` is honoured), then

@@ -813,6 +813,82 @@ func testShortcutConfigLoading() {
         "/Users/test/.config/minimal/config.toml", "default config path")
 }
 
+func testShortcutConfigTemplate() {
+    // Every default round-trips through the spelling the template writes, so
+    // a line the user uncomments is a line Minimal can read back.
+    for action in ShortcutAction.allCases {
+        let spelling = action.defaultShortcut.configSpelling
+        expectEqual(try! Shortcut.parse(spelling), action.defaultShortcut,
+                    "\(action.rawValue) spelling '\(spelling)' round-trips")
+    }
+    expectEqual(Shortcut(2, [.command, .shift]).configSpelling, "cmd+shift+d", "modifier order")
+    expectEqual(Shortcut(50, [.control]).configSpelling, "ctrl+`", "punctuation key")
+    expectEqual(Shortcut(49, [.option]).configSpelling, "opt+space", "named key")
+
+    let template = ShortcutConfig.template
+
+    // Shipped as written, the file changes nothing: every binding is
+    // commented, so defaults stay live and no warning is raised.
+    let seeded = ShortcutConfig.parse(toml: template)
+    expect(seeded.warnings.isEmpty, "template parses without warnings")
+    for action in ShortcutAction.allCases {
+        expectEqual(seeded[action], action.defaultShortcut,
+                    "\(action.rawValue) keeps its default in the shipped template")
+    }
+
+    // Uncommenting every binding must still yield exactly the defaults —
+    // that is what proves the file documents what the app actually does.
+    let uncommented = template
+        .components(separatedBy: .newlines)
+        .map { line -> String in
+            guard line.hasPrefix("# ") else { return line }
+            let body = String(line.dropFirst(2))
+            guard let equals = body.firstIndex(of: "="),
+                  body[body.startIndex..<equals].allSatisfy({ $0.isLowercase || $0 == "_" || $0 == " " })
+            else { return line }
+            return body
+        }
+        .joined(separator: "\n")
+    let live = ShortcutConfig.parse(toml: uncommented)
+    expect(live.warnings.isEmpty, "uncommented template parses without warnings")
+    for action in ShortcutAction.allCases {
+        expectEqual(live[action], action.defaultShortcut,
+                    "\(action.rawValue) matches its default when uncommented")
+        expect(template.contains(action.rawValue), "template lists \(action.rawValue)")
+        expect(template.contains(action.summary), "template explains \(action.rawValue)")
+    }
+}
+
+func testShortcutConfigSeeding() {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("minimal-seed-tests-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let destination = directory.appendingPathComponent("minimal/config.toml")
+
+    // Nothing on disk: the template is written, intermediate directories and
+    // all, and it loads back as the defaults.
+    let written = ShortcutConfig.seedUserConfigIfMissing(searchPaths: [destination], destination: destination)
+    expectEqual(written, destination, "seeds when no config exists")
+    expectEqual(try? String(contentsOf: destination, encoding: .utf8), ShortcutConfig.template,
+                "writes the template verbatim")
+    expectEqual(ShortcutConfig.load(searchPaths: [destination])[.voice],
+                ShortcutAction.voice.defaultShortcut, "a seeded file is a no-op config")
+
+    // Seeding is once-only: an edited file is never overwritten.
+    try! "[shortcuts]\nvoice = \"cmd+j\"\n".write(to: destination, atomically: true, encoding: .utf8)
+    expect(ShortcutConfig.seedUserConfigIfMissing(searchPaths: [destination], destination: destination) == nil,
+           "leaves an existing config alone")
+    expectEqual(ShortcutConfig.load(searchPaths: [destination])[.voice], Shortcut(38, [.command]),
+                "the user's edit survives")
+
+    // A config found anywhere in the search order counts, so seeding never
+    // drops a second file next to a $MINIMAL_CONFIG that is already in use.
+    let elsewhere = directory.appendingPathComponent("elsewhere.toml")
+    expect(ShortcutConfig.seedUserConfigIfMissing(searchPaths: [destination], destination: elsewhere) == nil,
+           "an earlier search path suppresses seeding")
+    expect(!FileManager.default.fileExists(atPath: elsewhere.path), "nothing written next to it")
+}
+
 // MARK: - Runner
 
 @main
@@ -849,6 +925,8 @@ struct TestRunner {
         testShortcutConfigOverrides()
         testShortcutConfigRejectsBadEntries()
         testShortcutConfigLoading()
+        testShortcutConfigTemplate()
+        testShortcutConfigSeeding()
 
         if failureCount > 0 {
             print("\(failureCount)/\(testCount) checks FAILED")

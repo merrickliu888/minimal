@@ -22,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         BundledFonts.register()
+        // A fresh install gets a config.toml documenting every action and the
+        // format, so rebinding a shortcut needs no other reference. Seeding
+        // happens here and not in reload() — that is also the menu action,
+        // which must not resurrect a file the user deleted on purpose.
+        ShortcutConfig.seedUserConfigIfMissing()
         // Shortcuts come from config.toml when the user has one; every hint
         // and key handler reads the table, so load it before anything else.
         Shortcuts.reload()

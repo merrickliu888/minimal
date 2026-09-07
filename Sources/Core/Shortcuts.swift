@@ -384,6 +384,108 @@ struct ShortcutConfig {
     }
 }
 
+// MARK: - Seeding
+
+extension Shortcut {
+
+    /// How this shortcut is written in config.toml, e.g. "cmd+shift+d".
+    /// Modifier order matches the on-screen hints (⌃⌥⌘⇧) so the two spellings
+    /// read the same way round.
+    var configSpelling: String {
+        var tokens: [String] = []
+        if modifiers.contains(.control) { tokens.append("ctrl") }
+        if modifiers.contains(.option) { tokens.append("opt") }
+        if modifiers.contains(.command) { tokens.append("cmd") }
+        if modifiers.contains(.shift) { tokens.append("shift") }
+        tokens.append(Self.keysByCode[keyCode]?.names[0] ?? "key\(keyCode)")
+        return tokens.joined(separator: "+")
+    }
+}
+
+extension ShortcutConfig {
+
+    /// The file Minimal writes to `userConfigPath()` on first launch: every
+    /// action, its default, and the whole format, with each binding commented
+    /// out. Editing shortcuts then needs no other reference — which is the
+    /// point, since the usual way to change one is to point a coding agent at
+    /// the file rather than to learn the syntax.
+    ///
+    /// The bindings are generated from the defaults rather than typed out, so
+    /// the file can never claim a default the app doesn't actually use. They
+    /// ship commented because an uncommented line pins that binding: a later
+    /// change to a default would never reach anyone holding a seeded file.
+    static var template: String {
+        let actions = ShortcutAction.allCases
+        let nameWidth = actions.map(\.rawValue.count).max() ?? 0
+        let bindingWidth = actions.map { $0.defaultShortcut.configSpelling.count + 2 }.max() ?? 0
+
+        func line(_ action: ShortcutAction) -> String {
+            let name = action.rawValue.padding(toLength: nameWidth, withPad: " ", startingAt: 0)
+            let binding = "\"\(action.defaultShortcut.configSpelling)\""
+                .padding(toLength: bindingWidth, withPad: " ", startingAt: 0)
+            return "# \(name) = \(binding)  # \(action.summary)"
+        }
+
+        let global = actions.filter(\.isGlobal).map(line).joined(separator: "\n")
+        let overlay = actions.filter { !$0.isGlobal }.map(line).joined(separator: "\n")
+
+        return """
+        # Minimal shortcuts. Every line below is commented out, so Minimal is running
+        # its defaults. Uncomment a line and edit it to rebind that action; leave a
+        # line commented and that action keeps its default, even if that default
+        # changes in a later release.
+        #
+        # Format: modifiers and a key joined by "+", e.g. "cmd+shift+d". Modifiers are
+        # cmd/command, opt/option/alt, ctrl/control and shift (symbols work too, so
+        # "⌘⇧D" is the same shortcut). Keys are letters, digits, f1–f20, punctuation
+        # ("," "." "/" "`" "-" "=" "[" "]" ";" "'" "\\"), or a name: space, tab, return,
+        # escape, delete, forwarddelete, left, right, up, down, home, end, pageup,
+        # pagedown.
+        #
+        # Every shortcut needs at least one of cmd, opt or ctrl — shift alone would
+        # swallow ordinary typing. Entries Minimal can't use are ignored (the default
+        # is kept) and explained in the settings window.
+        #
+        # Edits are picked up with "Reload Config" in the menu bar — the filled circle
+        # in the status bar — so there is no need to restart the app.
+
+        [shortcuts]
+
+        # Global — these work in any app.
+        \(global)
+
+        # Overlay — these work while Minimal has focus.
+        \(overlay)
+
+        """
+    }
+
+    /// Writes `template` to `destination` when no config file exists anywhere
+    /// in `searchPaths`, so a fresh install has something to edit. Returns the
+    /// file it wrote, or nil when it left the disk alone.
+    @discardableResult
+    static func seedUserConfigIfMissing(
+        searchPaths: [URL] = ShortcutConfig.searchPaths(),
+        destination: URL = ShortcutConfig.userConfigPath()
+    ) -> URL? {
+        // Any existing config counts, not just one at `destination`: seeding
+        // alongside a $MINIMAL_CONFIG the user already has would leave a
+        // second file that is never read.
+        let manager = FileManager.default
+        if searchPaths.contains(where: { manager.fileExists(atPath: $0.path) }) { return nil }
+        do {
+            try manager.createDirectory(
+                at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try template.write(to: destination, atomically: true, encoding: .utf8)
+            return destination
+        } catch {
+            // A read-only home directory is no reason to fail launch.
+            NSLog("Shortcuts: could not write %@ (%@)", destination.path, String(describing: error))
+            return nil
+        }
+    }
+}
+
 // MARK: - Process-wide bindings
 
 /// The one table every key handler and hint reads. Loaded at launch and on
