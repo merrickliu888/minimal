@@ -1,0 +1,28 @@
+# Minimal shortcuts. Copy to ~/.config/minimal/config.toml and edit the lines
+# you want to change — anything you leave out keeps its default.
+#
+# Format: modifiers and a key joined by "+", e.g. "cmd+shift+d". Modifiers are
+# cmd/command, opt/option/alt, ctrl/control and shift (symbols work too, so
+# "⌘⇧D" is the same shortcut). Keys are letters, digits, f1–f20, punctuation
+# ("," "." "/" "`" "-" "=" "[" "]" ";" "'" "\"), or a name: space, tab, return,
+# escape, delete, left, right, up, down, home, end, pageup, pagedown.
+#
+# Every shortcut needs at least one of cmd, opt or ctrl — shift alone would
+# swallow ordinary typing. Bad entries are ignored (the default is kept) and
+# reported in the settings window.
+
+[shortcuts]
+# Global — these work in any app.
+new_agent = "opt+space"          # open the prompt
+manage_agents = "opt+tab"        # open the agents panel
+
+# Overlay — these work while Minimal has focus.
+settings = "cmd+,"               # open the settings window
+voice = "cmd+d"                  # start/stop a voice prompt
+project_picker = "cmd+p"         # pick the agent's project
+model_picker = "cmd+m"           # pick harness, model and thinking level
+toggle_terminal = "ctrl+`"       # show/hide the terminal pane
+toggle_diff = "cmd+shift+d"      # show/hide uncommitted changes
+stop_agent = "ctrl+c"            # interrupt the running turn
+allow_permission = "cmd+y"       # allow a permission request
+deny_permission = "cmd+n"        # deny a permission request

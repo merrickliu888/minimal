@@ -21,7 +21,9 @@ TEST_SOURCES = $(shell find Tests -name '*.swift' -type f | LC_ALL=C sort) \
 	Sources/Core/CodexStreamJSON.swift \
 	Sources/Core/GitInfo.swift \
 	Sources/Core/InlineTrigger.swift \
-	Sources/Core/TranscriptLinks.swift
+	Sources/Core/TranscriptLinks.swift \
+	Sources/Core/TOML.swift \
+	Sources/Core/Shortcuts.swift
 
 empty :=
 space := $(empty) $(empty)

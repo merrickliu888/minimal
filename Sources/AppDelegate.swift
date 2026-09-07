@@ -22,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         BundledFonts.register()
+        // Shortcuts come from config.toml when the user has one; every hint
+        // and key handler reads the table, so load it before anything else.
+        Shortcuts.reload()
         permissions.refresh()
 
         minimalController.canUseMinimal = { [weak self] in
@@ -44,6 +47,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 showSettingsWindow()
             }
         }
+    }
+
+    /// Re-read config.toml (menu bar → Reload Config) so a shortcut edit
+    /// takes effect without restarting the app.
+    func reloadConfig() {
+        Shortcuts.reload()
+        hotkeys.restart()
+        // Hints live in views observing the controller; nudge them to redraw.
+        minimalController.objectWillChange.send()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
