@@ -104,9 +104,9 @@ struct PromptPillView: View {
 
             HStack(spacing: 14) {
                 if isFocused {
-                    KeyHint(symbol: "⌘D", label: "voice")
-                    KeyHint(symbol: "⌘P", label: "project")
-                    KeyHint(symbol: "⌘M", label: "model")
+                    KeyHint(symbol: Shortcuts.display(.voice), label: "voice")
+                    KeyHint(symbol: Shortcuts.display(.projectPicker), label: "project")
+                    KeyHint(symbol: Shortcuts.display(.modelPicker), label: "model")
                 } else {
                     KeyHint(symbol: "⇥", label: "focus")
                 }

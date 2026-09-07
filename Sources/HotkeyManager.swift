@@ -8,9 +8,17 @@ import Foundation
 /// into the frontmost app.
 final class HotkeyManager {
 
-    enum Hotkey: UInt32 {
-        case promptEntry = 1     // Option+Space
-        case management = 2      // Option+Tab
+    enum Hotkey: UInt32, CaseIterable {
+        case promptEntry = 1     // new_agent, ⌥Space by default
+        case management = 2      // manage_agents, ⌥Tab by default
+
+        /// The configurable action this hotkey is bound to.
+        var action: ShortcutAction {
+            switch self {
+            case .promptEntry: return .newAgent
+            case .management: return .manageAgents
+            }
+        }
     }
 
     var onHotkey: ((Hotkey) -> Void)?
@@ -34,8 +42,16 @@ final class HotkeyManager {
         InstallEventHandler(GetEventDispatcherTarget(), callback, 1, &eventType,
                             Unmanaged.passUnretained(self).toOpaque(), &handler)
 
-        register(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey), id: .promptEntry)
-        register(keyCode: UInt32(kVK_Tab), modifiers: UInt32(optionKey), id: .management)
+        for hotkey in Hotkey.allCases {
+            let shortcut = Shortcuts[hotkey.action]
+            register(keyCode: UInt32(shortcut.keyCode), modifiers: shortcut.modifiers.carbonFlags, id: hotkey)
+        }
+    }
+
+    /// Re-register after config.toml is reloaded.
+    func restart() {
+        stop()
+        start()
     }
 
     private func register(keyCode: UInt32, modifiers: UInt32, id: Hotkey) {

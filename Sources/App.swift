@@ -30,13 +30,16 @@ struct MenuBarView: View {
         Group {
             Text(statusLine(needsInput: needsInput, running: running))
             Divider()
-            Button("New Agent  ⌥Space") {
+            Button("New Agent  \(Shortcuts.display(.newAgent))") {
                 appDelegate.minimalController.handleHotkey(.promptEntry)
             }
-            Button("Manage Agents  ⌥Tab") {
+            Button("Manage Agents  \(Shortcuts.display(.manageAgents))") {
                 appDelegate.minimalController.handleHotkey(.management)
             }
             Divider()
+            Button("Reload Config") {
+                appDelegate.reloadConfig()
+            }
             Button("Settings…") {
                 appDelegate.showSettingsWindow()
             }

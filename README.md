@@ -21,9 +21,27 @@ Minimal is a native macOS app for running Claude Code and Codex from a lightweig
 
 ## Features
 
-- **Quick access** - Open the prompt with `⌥Space` and manage agents with `⌥Tab`.
+- **Quick access** - Open the prompt with `⌥Space` and manage agents with `⌥Tab`, or [rebind](#configuration) both.
 - **Claude Code and Codex** - Choose the coding agent that fits your task.
 - **Voice prompts** - Speak prompts using Apple's on-device speech recognition.
+
+## Configuration
+
+Shortcuts are configurable. On first launch Minimal writes
+`~/.config/minimal/config.toml` — every action, its default, and the format,
+with each line commented out so the defaults stay live.
+
+You don't have to learn any of it. Point your coding agent at the file:
+
+> Open `~/.config/minimal/config.toml` and make the voice prompt ⌘L.
+
+The file documents itself, so the agent needs nothing else. Edit it by hand if
+you'd rather — uncomment the lines you want to change. Either way, pick the
+edit up with **Reload Config** in the menu bar; no restart needed.
+
+Minimal uses the first file that exists: `$MINIMAL_CONFIG`, then
+`~/.config/minimal/config.toml` (`$XDG_CONFIG_HOME` is honoured), then
+`~/Library/Application Support/Minimal/config.toml`.
 
 ## Privacy
 

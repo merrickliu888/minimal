@@ -1027,7 +1027,6 @@ final class MinimalController: ObservableObject {
         static let right: UInt16 = 124
         static let down: UInt16 = 125
         static let up: UInt16 = 126
-        static let backtick: UInt16 = 50
     }
 
     /// Returns true when the event was consumed.
@@ -1038,8 +1037,8 @@ final class MinimalController: ObservableObject {
         if let keyWindow = NSApp.keyWindow, !(keyWindow is MinimalPanel) {
             return false
         }
-        // ⌘, opens Settings from any overlay mode.
-        if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "," {
+        // The settings shortcut (⌘, by default) works in any overlay mode.
+        if Shortcuts[.settings].matches(event) {
             onRequestSettings()
             return true
         }
@@ -1049,6 +1048,12 @@ final class MinimalController: ObservableObject {
 
         case .promptEntry(let transcribing):
             if !transcribing, let handled = routeSuggestionKey(event) { return handled }
+            // Configured shortcuts are matched before the fixed navigation
+            // keys so a rebind actually takes effect. Every configured
+            // shortcut carries ⌘, ⌥ or ⌃, so plain typing is never shadowed.
+            if Shortcuts[.voice].matches(event) { feed(.voiceKey); return true }
+            if Shortcuts[.projectPicker].matches(event) { feed(.projectKey); return true }
+            if Shortcuts[.modelPicker].matches(event) { feed(.modelKey); return true }
             switch event.keyCode {
             case Key.escape: feed(.escape); return true
             case Key.returnKey where event.modifierFlags.contains(.shift) && !transcribing:
@@ -1061,19 +1066,7 @@ final class MinimalController: ObservableObject {
                 return true
             default:
                 if event.modifierFlags.contains(.command) {
-                    switch event.charactersIgnoringModifiers?.lowercased() {
-                    case "d" where !event.modifierFlags.contains(.shift):
-                        feed(.voiceKey)
-                        return true
-                    case "p":
-                        feed(.projectKey)
-                        return true
-                    case "m":
-                        feed(.modelKey)
-                        return true
-                    default:
-                        return handleEditingCommand(event)
-                    }
+                    return handleEditingCommand(event)
                 }
                 if transcribing, let c = typedCharacter(event) {
                     feed(.character(c))
@@ -1098,8 +1091,7 @@ final class MinimalController: ObservableObject {
             }
 
         case .projectPicker:
-            if event.modifierFlags.contains(.command),
-               event.charactersIgnoringModifiers?.lowercased() == "p" {
+            if Shortcuts[.projectPicker].matches(event) {
                 feed(.projectKey) // toggle closed
                 return true
             }
@@ -1116,8 +1108,7 @@ final class MinimalController: ObservableObject {
             }
 
         case .modelPicker:
-            if event.modifierFlags.contains(.command),
-               event.charactersIgnoringModifiers?.lowercased() == "m" {
+            if Shortcuts[.modelPicker].matches(event) {
                 feed(.modelKey) // toggle closed
                 return true
             }
@@ -1135,18 +1126,16 @@ final class MinimalController: ObservableObject {
 
         case .conversation:
             // Pane toggles work regardless of which pane has focus — the
-            // shell never sees ⌃` or ⌘⇧D.
-            if event.keyCode == Key.backtick && event.modifierFlags.contains(.control) {
+            // shell never sees the terminal or diff shortcut.
+            if Shortcuts[.toggleTerminal].matches(event) {
                 toggleTerminal()
                 return true
             }
-            if event.modifierFlags.contains(.command) && event.modifierFlags.contains(.shift),
-               event.charactersIgnoringModifiers?.lowercased() == "d" {
+            if Shortcuts[.toggleDiff].matches(event) {
                 toggleDiff()
                 return true
             }
-            if event.modifierFlags.contains(.command), !event.modifierFlags.contains(.shift),
-               event.charactersIgnoringModifiers?.lowercased() == "m" {
+            if Shortcuts[.modelPicker].matches(event) {
                 toggleModelPane()
                 return true
             }
@@ -1182,27 +1171,28 @@ final class MinimalController: ObservableObject {
                 }
             }
             if let handled = routeSuggestionKey(event) { return handled }
-            // ⌃C stops the in-flight agent turn (composer focus only — in
-            // the terminal pane ⌃C belongs to the shell, handled above).
-            if event.modifierFlags.contains(.control),
-               event.charactersIgnoringModifiers?.lowercased() == "c",
-               let sessionID = openSessionID {
+            // The stop shortcut (⌃C by default) ends the in-flight agent
+            // turn — composer focus only, since in the terminal pane ⌃C
+            // belongs to the shell (handled above).
+            if Shortcuts[.stopAgent].matches(event), let sessionID = openSessionID {
                 coordinator.interrupt(sessionID: sessionID)
                 return true
             }
             if event.keyCode == Key.escape { feed(.escape); return true }
             if event.keyCode == Key.tab { feed(.tab); return true }
+            if Shortcuts[.voice].matches(event) {
+                feed(.voiceKey)
+                return true
+            }
+            if let sessionID = openSessionID,
+               let request = coordinator.pendingPermissions(for: sessionID).first {
+                let allow = Shortcuts[.allowPermission].matches(event)
+                if allow || Shortcuts[.denyPermission].matches(event) {
+                    coordinator.respondToPermission(sessionID: sessionID, requestID: request.id, allow: allow)
+                    return true
+                }
+            }
             if event.modifierFlags.contains(.command) {
-                let c = event.charactersIgnoringModifiers?.lowercased()
-                if c == "d" && !event.modifierFlags.contains(.shift) {
-                    feed(.voiceKey)
-                    return true
-                }
-                if c == "y" || c == "n", let sessionID = openSessionID,
-                   let request = coordinator.pendingPermissions(for: sessionID).first {
-                    coordinator.respondToPermission(sessionID: sessionID, requestID: request.id, allow: c == "y")
-                    return true
-                }
                 return handleEditingCommand(event)
             }
             if event.keyCode == Key.returnKey {

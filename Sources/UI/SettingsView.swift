@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Conventional onboarding/settings window: macOS permissions and coding
@@ -12,7 +13,7 @@ struct SettingsView: View {
                 Text("Minimal Setup")
                     .font(.title2.weight(.semibold))
                 Text(
-                    "Grant the required permissions and connect at least one harness, then summon the overlay with ⌥Space from any app."
+                    "Grant the required permissions and connect at least one harness, then summon the overlay with \(Shortcuts.display(.newAgent)) from any app."
                 )
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -56,7 +57,7 @@ struct SettingsView: View {
             HStack {
                 if permissions.allGranted && settingsModel.hasConnectedProvider {
                     Label(
-                        "Ready — press ⌥Space anywhere to start an agent, ⌥Tab to manage agents.",
+                        "Ready — press \(Shortcuts.display(.newAgent)) anywhere to start an agent, \(Shortcuts.display(.manageAgents)) to manage agents.",
                         systemImage: "checkmark.circle.fill"
                     )
                     .font(.system(size: 12))
@@ -71,6 +72,8 @@ struct SettingsView: View {
                 }
                 Spacer()
             }
+
+            shortcutsNote
         }
         .padding(22)
         .frame(width: 540, alignment: .top)
@@ -81,6 +84,45 @@ struct SettingsView: View {
             settingsModel.recheck()
         }
         .onDisappear { permissions.stopPolling() }
+    }
+
+    /// Where the shortcuts came from, plus anything that went wrong reading
+    /// the config file — the only place those warnings are visible in the UI.
+    @ViewBuilder
+    private var shortcutsNote: some View {
+        let config = Shortcuts.config
+        VStack(alignment: .leading, spacing: 3) {
+            Text(shortcutsSummary(config))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .help(shortcutsList(config))
+            ForEach(Array(config.warnings.enumerated()), id: \.offset) { warning in
+                Text(warning.element)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.failure)
+            }
+        }
+    }
+
+    private func shortcutsSummary(_ config: ShortcutConfig) -> String {
+        guard let source = config.source else {
+            return "Shortcuts: defaults — create \(abbreviated(ShortcutConfig.userConfigPath())) to change them."
+        }
+        return "Shortcuts: \(abbreviated(source))"
+    }
+
+    /// Every binding, as the tooltip on the note.
+    private func shortcutsList(_ config: ShortcutConfig) -> String {
+        ShortcutAction.allCases
+            .map { "\(config[$0].display)  \($0.summary)\($0.isGlobal ? " (anywhere)" : "")" }
+            .joined(separator: "\n")
+    }
+
+    private func abbreviated(_ url: URL) -> String {
+        let home = NSHomeDirectory()
+        guard url.path.hasPrefix(home) else { return url.path }
+        return "~" + String(url.path.dropFirst(home.count))
     }
 
     @ViewBuilder

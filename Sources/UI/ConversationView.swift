@@ -135,8 +135,8 @@ struct ConversationView: View {
                         .lineLimit(2)
                 }
                 Spacer()
-                KeyHint(symbol: "⌘Y", label: "allow")
-                KeyHint(symbol: "⌘N", label: "deny")
+                KeyHint(symbol: Shortcuts.display(.allowPermission), label: "allow")
+                KeyHint(symbol: Shortcuts.display(.denyPermission), label: "deny")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -168,13 +168,13 @@ struct ConversationView: View {
             HStack(spacing: 12) {
                 KeyHint(symbol: "⏎", label: "send")
                 KeyHint(symbol: "⇧⏎", label: "newline")
-                KeyHint(symbol: "⌘D", label: controller.composerTranscribing ? "stop voice" : "voice")
-                KeyHint(symbol: "⌘M", label: "model")
+                KeyHint(symbol: Shortcuts.display(.voice), label: controller.composerTranscribing ? "stop voice" : "voice")
+                KeyHint(symbol: Shortcuts.display(.modelPicker), label: "model")
                 if meta?.state == .running {
-                    KeyHint(symbol: "⌃C", label: "stop")
+                    KeyHint(symbol: Shortcuts.display(.stopAgent), label: "stop")
                 }
-                KeyHint(symbol: "⌃`", label: controller.terminalVisible ? "hide terminal" : "terminal")
-                KeyHint(symbol: "⌘⇧D", label: controller.diffVisible ? "hide diff" : "diff")
+                KeyHint(symbol: Shortcuts.display(.toggleTerminal), label: controller.terminalVisible ? "hide terminal" : "terminal")
+                KeyHint(symbol: Shortcuts.display(.toggleDiff), label: controller.diffVisible ? "hide diff" : "diff")
                 Spacer()
                 if let meta {
                     HStack(spacing: 4) {

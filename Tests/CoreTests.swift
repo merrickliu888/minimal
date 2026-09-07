@@ -639,6 +639,256 @@ func testInitializeProtocol() {
     expectEqual(StreamJSON.parseInitializeCommands(errorResponse, requestID: "init-1"), [], "error response yields empty list")
 }
 
+// MARK: - Config file / shortcuts tests
+
+func testTOMLParsing() {
+    let document = try! TOML.parse("""
+    # a comment
+    top = "level"
+
+    [shortcuts]  # trailing comment
+    voice = "cmd+d"   # another
+    empty_ok = ''
+    escaped = "a\\"b"
+    literal = 'raw\\value'
+    bare = 42
+
+    [other.nested]
+    key = "value"
+    """)
+    expectEqual(document[""]?["top"], "level", "root table key")
+    expectEqual(document["shortcuts"]?["voice"], "cmd+d", "table key with comment")
+    expectEqual(document["shortcuts"]?["empty_ok"], "", "empty literal string")
+    expectEqual(document["shortcuts"]?["escaped"], "a\"b", "escaped quote")
+    expectEqual(document["shortcuts"]?["literal"], "raw\\value", "literal string keeps backslash")
+    expectEqual(document["shortcuts"]?["bare"], "42", "bare value")
+    expectEqual(document["other.nested"]?["key"], "value", "dotted table name")
+
+    // Dotted keys land in the table they name.
+    let dotted = try! TOML.parse("shortcuts.voice = \"cmd+j\"")
+    expectEqual(dotted["shortcuts"]?["voice"], "cmd+j", "dotted key")
+
+    func failure(_ text: String) -> Int? {
+        do { _ = try TOML.parse(text); return nil }
+        catch let error as TOML.ParseError { return error.line }
+        catch { return -1 }
+    }
+    expectEqual(failure("[shortcuts\nvoice = \"cmd+d\""), 1, "unterminated header")
+    expectEqual(failure("voice"), 1, "missing '='")
+    expectEqual(failure("voice ="), 1, "missing value")
+    expectEqual(failure("voice = \"cmd+d"), 1, "unterminated string")
+    expectEqual(failure("voice = \"a\" junk"), 1, "trailing junk")
+    expectEqual(failure("[shortcuts]\nvoice = \"a\"\nvoice = \"b\""), 3, "duplicate key")
+    expectEqual(failure("keys = [1, 2]\n"), nil, "arrays parse as opaque bare values")
+}
+
+func testShortcutParsing() {
+    expectEqual(try! Shortcut.parse("cmd+d"), Shortcut(2, [.command]), "cmd+d")
+    expectEqual(try! Shortcut.parse("  CMD + Shift + D "), Shortcut(2, [.command, .shift]), "spacing and case")
+    expectEqual(try! Shortcut.parse("⌘⇧D"), Shortcut(2, [.command, .shift]), "symbol spelling")
+    expectEqual(try! Shortcut.parse("opt+space"), Shortcut(49, [.option]), "opt+space")
+    expectEqual(try! Shortcut.parse("option+tab"), Shortcut(48, [.option]), "option+tab")
+    expectEqual(try! Shortcut.parse("alt+tab"), Shortcut(48, [.option]), "alt alias")
+    expectEqual(try! Shortcut.parse("ctrl+`"), Shortcut(50, [.control]), "ctrl+backtick")
+    expectEqual(try! Shortcut.parse("control+backtick"), Shortcut(50, [.control]), "named backtick")
+    expectEqual(try! Shortcut.parse("cmd+,"), Shortcut(43, [.command]), "cmd+comma")
+    expectEqual(try! Shortcut.parse("cmd+ctrl+f5"), Shortcut(96, [.command, .control]), "function key")
+
+    func error(_ text: String) -> ShortcutParseError? {
+        do { _ = try Shortcut.parse(text); return nil }
+        catch let error as ShortcutParseError { return error }
+        catch { return nil }
+    }
+    expectEqual(error(""), .empty, "empty string")
+    expectEqual(error("cmd"), .missingKey, "modifiers only")
+    expectEqual(error("cmd+zz"), .unknownKey("zz"), "unknown key")
+    expectEqual(error("cmd+d+e"), .multipleKeys("d", "e"), "two keys")
+    expect(error("cmd++") != nil, "trailing separator is an error")
+
+    // Displays match the hints the app has always shown.
+    expectEqual(ShortcutAction.newAgent.defaultShortcut.display, "⌥Space", "⌥Space display")
+    expectEqual(ShortcutAction.manageAgents.defaultShortcut.display, "⌥Tab", "⌥Tab display")
+    expectEqual(ShortcutAction.toggleDiff.defaultShortcut.display, "⌘⇧D", "⌘⇧D display")
+    expectEqual(ShortcutAction.toggleTerminal.defaultShortcut.display, "⌃`", "⌃` display")
+    expectEqual(ShortcutAction.allowPermission.defaultShortcut.display, "⌘Y", "⌘Y display")
+    expectEqual(ShortcutAction.settings.defaultShortcut.display, "⌘,", "⌘, display")
+    expectEqual(try! Shortcut.parse("cmd+return").display, "⌘⏎", "return display")
+
+    // No two defaults collide, and every key name round-trips to its code.
+    var seenDefaults: Set<Shortcut> = []
+    for action in ShortcutAction.allCases {
+        expect(seenDefaults.insert(action.defaultShortcut).inserted,
+               "\(action.rawValue) has its own default shortcut")
+    }
+    for key in Shortcut.keys {
+        for name in key.names {
+            expectEqual(Shortcut.codesByName[name], key.code, "name '\(name)' maps to its key")
+        }
+    }
+}
+
+func testShortcutConfigOverrides() {
+    let config = ShortcutConfig.parse(toml: """
+    [shortcuts]
+    new_agent = "ctrl+opt+space"
+    voice = "cmd+j"
+    toggle_diff = "⌘⇧G"
+    """)
+    expect(config.warnings.isEmpty, "clean config has no warnings: \(config.warnings)")
+    expectEqual(config[.newAgent], Shortcut(49, [.control, .option]), "global override")
+    expectEqual(config[.voice], Shortcut(38, [.command]), "voice override")
+    expectEqual(config[.toggleDiff], Shortcut(5, [.command, .shift]), "diff override")
+    // Untouched actions keep their defaults.
+    expectEqual(config[.manageAgents], ShortcutAction.manageAgents.defaultShortcut, "default kept")
+    expectEqual(config[.stopAgent], ShortcutAction.stopAgent.defaultShortcut, "default kept")
+
+    // An empty or shortcut-less file is exactly the defaults.
+    let empty = ShortcutConfig.parse(toml: "")
+    for action in ShortcutAction.allCases {
+        expectEqual(empty[action], action.defaultShortcut, "\(action.rawValue) defaults")
+    }
+    expect(empty.warnings.isEmpty, "empty config is silent")
+}
+
+func testShortcutConfigRejectsBadEntries() {
+    let config = ShortcutConfig.parse(toml: """
+    [shortcuts]
+    voice = "not+a+key"
+    model_picker = "j"
+    nonsense = "cmd+k"
+    stop_agent = "cmd+k"
+    project_picker = "cmd+k"
+
+    [colours]
+    accent = "red"
+    """)
+    // Bad values fall back rather than dropping the binding.
+    expectEqual(config[.voice], ShortcutAction.voice.defaultShortcut, "unparsable value falls back")
+    expectEqual(config[.modelPicker], ShortcutAction.modelPicker.defaultShortcut, "bare key falls back")
+    expectEqual(config[.stopAgent], Shortcut(40, [.command]), "valid value applied")
+    expect(config.warnings.contains(where: { $0.contains("not+a+key") }), "warns about the bad value")
+    expect(config.warnings.contains(where: { $0.contains("modifier") }), "warns a modifier is required")
+    expect(config.warnings.contains(where: { $0.contains("nonsense") }), "warns about an unknown action")
+    expect(config.warnings.contains(where: { $0.contains("[colours]") }), "warns about an unknown section")
+    expect(config.warnings.contains(where: { $0.contains("⌘K") }), "warns about the duplicate binding")
+
+    // Invalid TOML keeps every default instead of half-applying the file.
+    let broken = ShortcutConfig.parse(toml: "[shortcuts]\nvoice = ")
+    expectEqual(broken[.voice], ShortcutAction.voice.defaultShortcut, "broken file keeps defaults")
+    expectEqual(broken.warnings.count, 1, "broken file reports once")
+}
+
+func testShortcutConfigLoading() {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("minimal-config-tests-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let missing = directory.appendingPathComponent("missing.toml")
+    let present = directory.appendingPathComponent("config.toml")
+    try! "[shortcuts]\nvoice = \"cmd+j\"\n".write(to: present, atomically: true, encoding: .utf8)
+
+    // No file anywhere: defaults, and no source to show in Settings.
+    let absent = ShortcutConfig.load(searchPaths: [missing])
+    expectEqual(absent[.voice], ShortcutAction.voice.defaultShortcut, "no config = defaults")
+    expect(absent.source == nil, "no config = no source")
+
+    // First existing path in the list wins.
+    let loaded = ShortcutConfig.load(searchPaths: [missing, present])
+    expectEqual(loaded[.voice], Shortcut(38, [.command]), "loads the first file that exists")
+    expectEqual(loaded.source, present, "records where it came from")
+
+    // Search order: the env override beats ~/.config, which beats
+    // Application Support.
+    let paths = ShortcutConfig.searchPaths(
+        environment: ["MINIMAL_CONFIG": "~/elsewhere.toml", "XDG_CONFIG_HOME": "/xdg"],
+        home: "/Users/test")
+    expectEqual(paths.map(\.path), [
+        "/Users/test/elsewhere.toml",
+        "/xdg/minimal/config.toml",
+        "/Users/test/Library/Application Support/Minimal/config.toml",
+    ], "search order")
+    expectEqual(
+        ShortcutConfig.userConfigPath(environment: [:], home: "/Users/test").path,
+        "/Users/test/.config/minimal/config.toml", "default config path")
+}
+
+func testShortcutConfigTemplate() {
+    // Every default round-trips through the spelling the template writes, so
+    // a line the user uncomments is a line Minimal can read back.
+    for action in ShortcutAction.allCases {
+        let spelling = action.defaultShortcut.configSpelling
+        expectEqual(try! Shortcut.parse(spelling), action.defaultShortcut,
+                    "\(action.rawValue) spelling '\(spelling)' round-trips")
+    }
+    expectEqual(Shortcut(2, [.command, .shift]).configSpelling, "cmd+shift+d", "modifier order")
+    expectEqual(Shortcut(50, [.control]).configSpelling, "ctrl+`", "punctuation key")
+    expectEqual(Shortcut(49, [.option]).configSpelling, "opt+space", "named key")
+
+    let template = ShortcutConfig.template
+
+    // Shipped as written, the file changes nothing: every binding is
+    // commented, so defaults stay live and no warning is raised.
+    let seeded = ShortcutConfig.parse(toml: template)
+    expect(seeded.warnings.isEmpty, "template parses without warnings")
+    for action in ShortcutAction.allCases {
+        expectEqual(seeded[action], action.defaultShortcut,
+                    "\(action.rawValue) keeps its default in the shipped template")
+    }
+
+    // Uncommenting every binding must still yield exactly the defaults —
+    // that is what proves the file documents what the app actually does.
+    let uncommented = template
+        .components(separatedBy: .newlines)
+        .map { line -> String in
+            guard line.hasPrefix("# ") else { return line }
+            let body = String(line.dropFirst(2))
+            guard let equals = body.firstIndex(of: "="),
+                  body[body.startIndex..<equals].allSatisfy({ $0.isLowercase || $0 == "_" || $0 == " " })
+            else { return line }
+            return body
+        }
+        .joined(separator: "\n")
+    let live = ShortcutConfig.parse(toml: uncommented)
+    expect(live.warnings.isEmpty, "uncommented template parses without warnings")
+    for action in ShortcutAction.allCases {
+        expectEqual(live[action], action.defaultShortcut,
+                    "\(action.rawValue) matches its default when uncommented")
+        expect(template.contains(action.rawValue), "template lists \(action.rawValue)")
+        expect(template.contains(action.summary), "template explains \(action.rawValue)")
+    }
+}
+
+func testShortcutConfigSeeding() {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("minimal-seed-tests-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let destination = directory.appendingPathComponent("minimal/config.toml")
+
+    // Nothing on disk: the template is written, intermediate directories and
+    // all, and it loads back as the defaults.
+    let written = ShortcutConfig.seedUserConfigIfMissing(searchPaths: [destination], destination: destination)
+    expectEqual(written, destination, "seeds when no config exists")
+    expectEqual(try? String(contentsOf: destination, encoding: .utf8), ShortcutConfig.template,
+                "writes the template verbatim")
+    expectEqual(ShortcutConfig.load(searchPaths: [destination])[.voice],
+                ShortcutAction.voice.defaultShortcut, "a seeded file is a no-op config")
+
+    // Seeding is once-only: an edited file is never overwritten.
+    try! "[shortcuts]\nvoice = \"cmd+j\"\n".write(to: destination, atomically: true, encoding: .utf8)
+    expect(ShortcutConfig.seedUserConfigIfMissing(searchPaths: [destination], destination: destination) == nil,
+           "leaves an existing config alone")
+    expectEqual(ShortcutConfig.load(searchPaths: [destination])[.voice], Shortcut(38, [.command]),
+                "the user's edit survives")
+
+    // A config found anywhere in the search order counts, so seeding never
+    // drops a second file next to a $MINIMAL_CONFIG that is already in use.
+    let elsewhere = directory.appendingPathComponent("elsewhere.toml")
+    expect(ShortcutConfig.seedUserConfigIfMissing(searchPaths: [destination], destination: elsewhere) == nil,
+           "an earlier search path suppresses seeding")
+    expect(!FileManager.default.fileExists(atPath: elsewhere.path), "nothing written next to it")
+}
+
 // MARK: - Runner
 
 @main
@@ -670,6 +920,13 @@ struct TestRunner {
         testTranscriptFileLinks()
         testTranscriptFileLinkOpening()
         testInitializeProtocol()
+        testTOMLParsing()
+        testShortcutParsing()
+        testShortcutConfigOverrides()
+        testShortcutConfigRejectsBadEntries()
+        testShortcutConfigLoading()
+        testShortcutConfigTemplate()
+        testShortcutConfigSeeding()
 
         if failureCount > 0 {
             print("\(failureCount)/\(testCount) checks FAILED")
